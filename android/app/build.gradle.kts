@@ -36,6 +36,8 @@ android {
             signingConfig = signingConfigs.getByName("debug")
 
             // TODO: Add your own ProGuard rules for the release build.
+            isMinifyEnabled = true // Bật lại ép cân
+            isShrinkResources = true // Bật dọn tài nguyên thừa
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
     }

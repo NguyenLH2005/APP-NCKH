@@ -1,4 +1,4 @@
-import 'dart:io';
+﻿import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
@@ -81,7 +81,7 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
               child: Container(
                 width: double.infinity,
                 decoration: BoxDecoration(
-                  color: Colors.blue.withOpacity(0.05),
+                  color: Colors.blue.withValues(alpha: 0.05),
                   borderRadius: BorderRadius.circular(16),
                   border: _selectedImage == null
                       ? Border.all(color: Colors.grey, style: BorderStyle.solid)
@@ -236,3 +236,5 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
     );
   }
 }
+
+

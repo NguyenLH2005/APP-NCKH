@@ -36,7 +36,7 @@ class HistoryController extends Notifier<void> {
         file.deleteSync();
       }
     } catch (e) {
-      print("Lỗi xóa file: $e");
+
     }
   }
 }
@@ -44,3 +44,4 @@ class HistoryController extends Notifier<void> {
 final historyControllerProvider = NotifierProvider<HistoryController, void>(
   HistoryController.new,
 );
+

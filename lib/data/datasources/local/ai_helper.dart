@@ -34,10 +34,9 @@ class AIHelper {
     if (originalImage == null) throw Exception("Không thể đọc ảnh gốc");
 
     // Lấy kích thước ảnh gốc
-    final int origW = originalImage.width;
+        final int origW = originalImage.width;
     final int origH = originalImage.height;
 
-    // Resize ảnh về 512x512 cho YOLO
     final int inputSize = 512;
     img.Image resizedImage = img.copyResize(
       originalImage,
@@ -45,12 +44,10 @@ class AIHelper {
       height: inputSize,
     );
 
-    // Chuẩn bị input tensor theo chuẩn NCHW (Float32, normalized 0.0 - 1.0)
-    // Mảng có dạng [1, 3, 512, 512] vì crop_model.tflite được export theo Pytorch format
     var input = List.generate(
       1,
       (i) => List.generate(
-        3, // 3 Kênh màu (RGB) nằm ngoài cùng
+        3, 
         (c) => List.generate(
           inputSize,
           (y) => List.filled(inputSize, 0.0),
@@ -61,9 +58,9 @@ class AIHelper {
     for (int y = 0; y < inputSize; y++) {
       for (int x = 0; x < inputSize; x++) {
         final pixel = resizedImage.getPixel(x, y);
-        input[0][0][y][x] = pixel.r / 255.0; // Kênh Red
-        input[0][1][y][x] = pixel.g / 255.0; // Kênh Green
-        input[0][2][y][x] = pixel.b / 255.0; // Kênh Blue
+        input[0][0][y][x] = pixel.r / 255.0; 
+        input[0][1][y][x] = pixel.g / 255.0; 
+        input[0][2][y][x] = pixel.b / 255.0; 
       }
     }
 
@@ -88,12 +85,13 @@ class AIHelper {
     for (int i = 0; i < numBoxes; i++) {
       double foodProb = isTransposed ? output[0][i][4] : output[0][4][i];
       double labelProb = isTransposed ? output[0][i][5] : output[0][5][i];
-
-      if (foodProb > maxFoodProb && foodProb > 0.3) {
+      
+      // BỎ HOÀN TOÀN TIÊU CHUẨN, LẤY ĐIỂM CAO NHẤT KHÔNG CẦN BIẾT LÀ BAO NHIÊU
+      if (foodProb > maxFoodProb) {
         maxFoodProb = foodProb;
         maxFoodIndex = i;
       }
-      if (labelProb > maxLabelProb && labelProb > 0.3) {
+      if (labelProb > maxLabelProb) {
         maxLabelProb = labelProb;
         maxLabelIndex = i;
       }
@@ -119,10 +117,10 @@ class AIHelper {
         h *= inputSize;
       }
 
-      // Tọa độ trên ảnh 512x512
+                        // Tọa độ trên ảnh 512x512
       double x1 = xc - w / 2;
       double y1 = yc - h / 2;
-      
+
       // Quy chiếu về ảnh gốc
       int cropX = (x1 / inputSize * origW).toInt();
       int cropY = (y1 / inputSize * origH).toInt();
@@ -164,10 +162,9 @@ class AIHelper {
     if (originalImage == null) throw Exception("Không thể đọc ảnh để phân loại");
 
     // Thường model Classification như EfficientNet dùng size 224x224
-    final int inputSize = 224;
+        final int inputSize = 224;
     img.Image resizedImage = img.copyResize(originalImage, width: inputSize, height: inputSize);
 
-    // Chuẩn bị input tensor (Float32, không chia 255 vì Keras Model thường dùng ảnh thô 0-255)
     var input = List.generate(
       1,
       (i) => List.generate(
@@ -254,7 +251,7 @@ class AIHelper {
                }
                if (val >= 0.001 && val <= 5000) {
                  String valStr = (val == val.toInt()) ? val.toInt().toString() : val.toString().replaceAll(RegExp(r'0*$'), '').replaceAll(RegExp(r'\.$'), '');
-                 weightCandidate = '${valStr}${match.group(2)!.toUpperCase()}';
+                 weightCandidate = '$valStr${match.group(2)!.toUpperCase()}';
                }
             }
           } catch (e) {}
@@ -272,16 +269,14 @@ class AIHelper {
             double val = double.parse(numStr);
             if ('.'.allMatches(numStr).length <= 1 && val >= 0.001 && val <= 5000) {
               String valStr = (val == val.toInt()) ? val.toInt().toString() : val.toString().replaceAll(RegExp(r'0*$'), '').replaceAll(RegExp(r'\.$'), '');
-              weightCandidate = '${valStr}${match.group(2)!.toUpperCase()}';
+              weightCandidate = '$valStr${match.group(2)!.toUpperCase()}';
             }
           } catch (e) {}
         }
       }
 
       // Logic 3: Chạy Regex vét máng (Tương đương _extract_by_regex)
-      if (weightCandidate == null) {
-         weightCandidate = _extractByRegex(fullText);
-      }
+      weightCandidate ??= _extractByRegex(fullText);
 
       // Logic 4: Fallback số đơn lẻ quanh khu vực KL
       if (weightCandidate == null && klIndex != -1) {
@@ -296,7 +291,7 @@ class AIHelper {
                  }
                  String dv = (val < 15) ? 'KG' : 'G';
                  String valStr = (val == val.toInt()) ? val.toInt().toString() : val.toString().replaceAll(RegExp(r'0*$'), '').replaceAll(RegExp(r'\.$'), '');
-                 weightCandidate = '${valStr}${dv}';
+                 weightCandidate = '$valStr$dv';
                  break;
               }
            } catch (e) {}
@@ -332,7 +327,7 @@ class AIHelper {
               dv = (m.group(2)!.toUpperCase() == 'K') ? 'KG' : m.group(2)!.toUpperCase();
            }
            String soStr = (so == so.toInt()) ? so.toInt().toString() : so.toString().replaceAll(RegExp(r'0*$'), '').replaceAll(RegExp(r'\.$'), '');
-           return '${soStr}${dv}';
+           return '$soStr$dv';
         }
       } catch (e) {}
     }
@@ -347,7 +342,7 @@ class AIHelper {
               dv = (m.group(2)!.toUpperCase() == 'K') ? 'KG' : m.group(2)!.toUpperCase();
            }
            String soStr = (so == so.toInt()) ? so.toInt().toString() : so.toString().replaceAll(RegExp(r'0*$'), '').replaceAll(RegExp(r'\.$'), '');
-           return '${soStr}${dv}';
+           return '$soStr$dv';
         }
       } catch (e) {}
     }
@@ -366,7 +361,7 @@ class AIHelper {
            }
            String dv = (val < 15) ? 'KG' : 'G';
            String valStr = (val == val.toInt()) ? val.toInt().toString() : val.toString().replaceAll(RegExp(r'0*$'), '').replaceAll(RegExp(r'\.$'), '');
-           return '${valStr}${dv}';
+           return '$valStr$dv';
         }
       } catch (e) {}
     }
@@ -374,3 +369,19 @@ class AIHelper {
     return null;
   }
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

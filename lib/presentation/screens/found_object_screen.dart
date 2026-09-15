@@ -190,7 +190,7 @@ class FoundObjectScreen extends ConsumerWidget {
                 borderRadius: BorderRadius.circular(12),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.02),
+                    color: Colors.black.withValues(alpha: 0.02),
                     blurRadius: 10,
                     offset: const Offset(0, 4),
                   ),
@@ -237,7 +237,7 @@ class FoundObjectScreen extends ConsumerWidget {
                 border: const Border(left: BorderSide(color: Colors.red, width: 4)),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.02),
+                    color: Colors.black.withValues(alpha: 0.02),
                     blurRadius: 10,
                     offset: const Offset(0, 4),
                   ),
@@ -324,7 +324,7 @@ class FoundObjectScreen extends ConsumerWidget {
         border: Border(left: BorderSide(color: color, width: 4)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.02),
+            color: Colors.black.withValues(alpha: 0.02),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -354,4 +354,5 @@ class FoundObjectScreen extends ConsumerWidget {
     );
   }
 }
+
 

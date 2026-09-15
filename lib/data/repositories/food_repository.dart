@@ -1,4 +1,4 @@
-import 'package:flutter/services.dart';
+﻿import 'package:flutter/services.dart';
 import 'package:csv/csv.dart';
 
 class FoodRepository {
@@ -29,9 +29,9 @@ class FoodRepository {
           }
         }
       }
-      print("Đã load thành công ${_foodData.length} món ăn vào RAM!");
+
     } catch (e) {
-      print("Lỗi khi đọc file CSV: $e");
+
     }
   }
 
@@ -63,3 +63,4 @@ class FoodRepository {
     return null;
   }
 }
+

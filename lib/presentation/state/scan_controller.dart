@@ -37,6 +37,9 @@ class ScanController extends Notifier<ScanState> {
     // Chuyển UI sang trạng thái Loading
     state = ScanState(status: ScanStatus.loading);
 
+    // Yield the thread so UI can draw the loading indicator
+    await Future.delayed(const Duration(milliseconds: 100));
+
     final useCase = ref.read(analyzeUseCaseProvider);
     final result = await useCase.execute(imagePath);
 
@@ -44,12 +47,11 @@ class ScanController extends Notifier<ScanState> {
       // 2. LƯU VÀO SQLITE NGAY TẠI ĐÂY TRƯỚC KHI BÁO SUCCESS CHO UI
       try {
         await DatabaseHelper.instance.insertScan(result);
-        print("Đã lưu kết quả quét vào SQLite thành công!");
-        
+
         // Cập nhật lại danh sách lịch sử trên toàn app
         ref.invalidate(historyProvider);
       } catch (e) {
-        print("Lỗi khi lưu SQLite: $e");
+
       }
 
       // Đẩy kết quả sang màn hình ResultScreen
@@ -64,3 +66,7 @@ class ScanController extends Notifier<ScanState> {
 final scanControllerProvider = NotifierProvider<ScanController, ScanState>(
   ScanController.new,
 );
+
+
+
+

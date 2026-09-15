@@ -1,3 +1,4 @@
+﻿import 'package:flutter/foundation.dart';
 import 'dart:convert';
 
 import '../../data/models/scan_history_model.dart';
@@ -172,7 +173,7 @@ class AnalyzeFoodUseCase {
         createdAt: DateTime.now(),
       );
     } catch (e) {
-      print("Lỗi luồng phân tích: $e");
+      debugPrint('Lỗi phân tích: $e');
       return null;
     }
   }
@@ -194,3 +195,7 @@ class AnalyzeFoodUseCase {
     }
   }
 }
+
+
+
+

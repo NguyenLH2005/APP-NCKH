@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 class FullScreenImage extends StatelessWidget {
   final File imageFile;
 
-  const FullScreenImage({Key? key, required this.imageFile}) : super(key: key);
+  const FullScreenImage({super.key, required this.imageFile});
 
   @override
   Widget build(BuildContext context) {
@@ -34,3 +34,4 @@ class FullScreenImage extends StatelessWidget {
     );
   }
 }
+
