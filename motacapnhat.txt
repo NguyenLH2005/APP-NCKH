@@ -1,0 +1,24 @@
+Các yêu cầu chức năng cần cập nhật: yêu cầu cần them chức năng đưa ra gợi ý nn uống cho món nn đó, tùy chỉnh lại khối lượng nhận vào và profile cảu người dung. Sau đây là một số mô tả
+
+1. Quản lý Khối lượng món ăn:
+- Thêm chức năng tùy chỉnh khối lượng món ăn đã nhập vào theo đơn vị gốc là gram (g).
+- Khi thay đổi khối lượng, app sử dụng thuật toán nội suy (nhân chéo tỷ lệ) để tự động tính toán và cập nhật lại cột giá trị dinh dưỡng cục bộ trong bảng lịch sử tra cứu, tuyệt đối không load lại file CSV để tối ưu hiệu năng.
+
+2. Quản lý Người dùng (Local first):
+- Tạm hoãn tính năng đăng nhập và đồng bộ Server.
+- Thiết kế sẵn các trường định danh trong bảng `user_profile` (SQLite) để dự phòng mở rộng liên kết tài khoản Google sau này.
+- BẮT BUỘC xây dựng Màn hình Profile nội bộ để người dùng nhập/chỉnh sửa thông số cá nhân. Bảng `user_profile` sẽ lưu: ngày sinh (để tính tuổi động), cân nặng, chiều cao, giới tính, hệ số vận động, mục tiêu cân nặng (Tăng/Giảm/Giữ), và TDEE. Mức TDEE sẽ tự động nội suy và lưu lại cục bộ mỗi khi các thông số trên bị thay đổi.
+
+3. Hệ thống Tư vấn Dinh dưỡng Thông minh:
+- Khai thác Database gốc: Nhóm phân loại thực phẩm (đạm, tinh bột, béo, xơ...) nằm chung trong file CSV dinh dưỡng. Khi nhận diện tên món ăn, app sẽ lọc CSV, trích xuất thông số và đóng gói vào một "Thực thể tạm" (Temporary Model/Entity) trên RAM. 
+- Cơ sở tri thức: Sử dụng 1 file JSON (Template) chứa kịch bản tư vấn được "đục lỗ" sẵn biến số.
+- Thuật toán Gợi ý: Lấy dữ liệu từ Thực thể tạm hoặc bảng lịch sử, đối chiếu với TDEE và tiến hành "Phép trừ tập hợp" để phát hiện nhóm chất còn thiếu. App sẽ lấy thông tin nhóm phân loại ghép vào kịch bản text.
+- Hiển thị kết quả đa chiều: In ra đồng thời 2 đoạn kịch bản (hướng Giảm cân và hướng Tăng cân). Kịch bản bao gồm:
+  + Cảnh báo y khoa nếu hướng đi nghịch với thể trạng.
+  + Định lượng lượng ăn trong ngày cho riêng món đó.
+  + Gợi ý ghép cặp thức ăn (dựa trên nhóm chất còn thiếu) để cân bằng dinh dưỡng.
+- Tối ưu Cập nhật (Kích hoạt thủ công): Chức năng "Cập nhật gợi ý" CHỈ thực hiện khi người dùng chủ động nhấn nút. Tuyệt đối không tự động cập nhật ngầm toàn bộ lịch sử khi thông số người dùng thay đổi.
+
+4. Hạng mục Giao diện và Render:
+- Bàn bạc thêm về giao diện hiển thị kịch bản song song.
+- Bàn bạc thêm về cách quản lý state (trạng thái) khi cập nhật dữ liệu.

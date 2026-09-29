@@ -1,3 +1,4 @@
+﻿import 'dart:isolate';
 import 'dart:io';
 import 'dart:math';
 
@@ -7,6 +8,16 @@ import 'package:tflite_flutter/tflite_flutter.dart';
 import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
 
 class AIHelper {
+
+  String removeDiacritics(String str) {
+    var withDia = 'àáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹđÀÁẠẢÃÂẦẤẬẨẪĂẰẮẶẲẴÈÉẸẺẼÊỀẾỆỂỄÌÍỊỈĨÒÓỌỎÕÔỒỐỘỔỖƠỜỚỢỞỠÙÚỤỦŨƯỪỨỰỬỮỲÝỴỶỸĐ';
+    var withoutDia = 'aaaaaaaaaaaaaaaaaeeeeeeeeeeeiiiiiooooooooooooooooouuuuuuuuuuuyyyyydAAAAAAAAAAAAAAAAAEEEEEEEEEEEIIIIIOOOOOOOOOOOOOOOOOUUUUUUUUUUUYYYYYD';
+    for (int i = 0; i < withDia.length; i++) {
+      str = str.replaceAll(withDia[i], withoutDia[i]);
+    }
+    return str;
+  }
+
   static final AIHelper instance = AIHelper._init();
   AIHelper._init();
 
@@ -28,41 +39,58 @@ class AIHelper {
   Future<Map<String, String?>> detectAndCrop(String imagePath) async {
     await init();
     
-    // Đọc ảnh gốc
-    final File imageFile = File(imagePath);
-    final img.Image? originalImage = img.decodeImage(imageFile.readAsBytesSync());
-    if (originalImage == null) throw Exception("Không thể đọc ảnh gốc");
+        // Đọc ảnh gốc và xử lý Tensor trên Isolate (Luồng nền) để không làm đơ UI
+    final isolateResult = await Isolate.run(() {
+      final File imageFile = File(imagePath);
+      final img.Image? originalImage = img.decodeImage(imageFile.readAsBytesSync());
+      if (originalImage == null) return {'error': 'Không thể đọc ảnh gốc'};
 
-    // Lấy kích thước ảnh gốc
-        final int origW = originalImage.width;
-    final int origH = originalImage.height;
+      final int origW = originalImage.width;
+      final int origH = originalImage.height;
+      final int inputSize = 512;
+      
+      img.Image resizedImage = img.copyResize(
+        originalImage,
+        width: inputSize,
+        height: inputSize,
+      );
 
-    final int inputSize = 512;
-    img.Image resizedImage = img.copyResize(
-      originalImage,
-      width: inputSize,
-      height: inputSize,
-    );
-
-    var input = List.generate(
-      1,
-      (i) => List.generate(
-        3, 
-        (c) => List.generate(
-          inputSize,
-          (y) => List.filled(inputSize, 0.0),
+      var input = List.generate(
+        1,
+        (i) => List.generate(
+          3, 
+          (c) => List.generate(
+            inputSize,
+            (y) => List.filled(inputSize, 0.0),
+          ),
         ),
-      ),
-    );
+      );
 
-    for (int y = 0; y < inputSize; y++) {
-      for (int x = 0; x < inputSize; x++) {
-        final pixel = resizedImage.getPixel(x, y);
-        input[0][0][y][x] = pixel.r / 255.0; 
-        input[0][1][y][x] = pixel.g / 255.0; 
-        input[0][2][y][x] = pixel.b / 255.0; 
+      for (int y = 0; y < inputSize; y++) {
+        for (int x = 0; x < inputSize; x++) {
+          final pixel = resizedImage.getPixel(x, y);
+          input[0][0][y][x] = pixel.r / 255.0; 
+          input[0][1][y][x] = pixel.g / 255.0; 
+          input[0][2][y][x] = pixel.b / 255.0; 
+        }
       }
-    }
+      
+      return {
+        'originalImage': originalImage,
+        'origW': origW,
+        'origH': origH,
+        'input': input,
+        'inputSize': inputSize,
+      };
+    });
+
+    if (isolateResult.containsKey('error')) throw Exception(isolateResult['error']);
+
+    final img.Image originalImage = isolateResult['originalImage'] as img.Image;
+    final int origW = isolateResult['origW'] as int;
+    final int origH = isolateResult['origH'] as int;
+    final List<List<List<List<double>>>> input = isolateResult['input'] as List<List<List<List<double>>>>;
+    final int inputSize = isolateResult['inputSize'] as int;
 
     // Lấy output tensor shape để tạo mảng chứa kết quả
     final outputShape = _cropInterpreter!.getOutputTensor(0).shape;
@@ -91,7 +119,7 @@ class AIHelper {
         maxFoodProb = foodProb;
         maxFoodIndex = i;
       }
-      if (labelProb > maxLabelProb) {
+      if (labelProb > maxLabelProb && labelProb > 0.20) {
         maxLabelProb = labelProb;
         maxLabelIndex = i;
       }
@@ -133,11 +161,14 @@ class AIHelper {
       cropW = min(origW - cropX, max(1, cropW));
       cropH = min(origH - cropY, max(1, cropH));
 
-      img.Image cropped = img.copyCrop(originalImage, x: cropX, y: cropY, width: cropW, height: cropH);
-      
-      final directory = await getTemporaryDirectory();
+            final directory = await getTemporaryDirectory();
       final path = '${directory.path}/crop_${DateTime.now().millisecondsSinceEpoch}_$index.jpg';
-      File(path).writeAsBytesSync(img.encodeJpg(cropped));
+      
+      await Isolate.run(() {
+        img.Image cropped = img.copyCrop(originalImage, x: cropX, y: cropY, width: cropW, height: cropH);
+        File(path).writeAsBytesSync(img.encodeJpg(cropped));
+      });
+
       return path;
     }
 
@@ -157,31 +188,35 @@ class AIHelper {
   Future<String> classifyFood(String croppedImagePath) async {
     await init();
 
-    final File imageFile = File(croppedImagePath);
-    final img.Image? originalImage = img.decodeImage(imageFile.readAsBytesSync());
-    if (originalImage == null) throw Exception("Không thể đọc ảnh để phân loại");
-
-    // Thường model Classification như EfficientNet dùng size 224x224
-        final int inputSize = 224;
-    img.Image resizedImage = img.copyResize(originalImage, width: inputSize, height: inputSize);
-
-    var input = List.generate(
-      1,
-      (i) => List.generate(
-        inputSize,
-        (y) => List.generate(
+        final isolateResult = await Isolate.run(() {
+      final File imageFile = File(croppedImagePath);
+      final img.Image? originalImage = img.decodeImage(imageFile.readAsBytesSync());
+      if (originalImage == null) return null;
+  
+      final int inputSize = 224;
+      img.Image resizedImage = img.copyResize(originalImage, width: inputSize, height: inputSize);
+  
+      return List.generate(
+        1,
+        (i) => List.generate(
           inputSize,
-          (x) {
-            final pixel = resizedImage.getPixel(x, y);
-            return [
-              pixel.r.toDouble(),
-              pixel.g.toDouble(),
-              pixel.b.toDouble(),
-            ];
-          },
+          (y) => List.generate(
+            inputSize,
+            (x) {
+              final pixel = resizedImage.getPixel(x, y);
+              return [
+                pixel.r.toDouble(),
+                pixel.g.toDouble(),
+                pixel.b.toDouble(),
+              ];
+            },
+          ),
         ),
-      ),
-    );
+      );
+    });
+
+    if (isolateResult == null) throw Exception("Không thể đọc ảnh để phân loại");
+    var input = isolateResult;
 
     // Output là 1 mảng 1x12 (12 classes)
     var output = List.filled(1 * 12, 0.0).reshape([1, 12]);
@@ -218,16 +253,18 @@ class AIHelper {
       
       if (lines.isEmpty) return null;
       String fullText = lines.join(" ");
+      String normalizedText = removeDiacritics(fullText).toLowerCase();
+      List<String> normalizedLines = lines.map((l) => removeDiacritics(l).toLowerCase()).toList();
       
       int klIndex = -1;
       int donGiaIndex = -1;
       
       for (int i = 0; i < lines.length; i++) {
-        final word = lines[i].toLowerCase();
-        if (RegExp(r'kl|khối|trọng').hasMatch(word)) {
+        final word = normalizedLines[i];
+        if (RegExp(r'kl|khoi|trong').hasMatch(word)) {
           klIndex = i;
         }
-        if (RegExp(r'don\s*gia|giá').hasMatch(word)) {
+        if (RegExp(r'don\s*gia|gi.').hasMatch(word)) {
           donGiaIndex = i;
         }
       }
@@ -276,7 +313,7 @@ class AIHelper {
       }
 
       // Logic 3: Chạy Regex vét máng (Tương đương _extract_by_regex)
-      weightCandidate ??= _extractByRegex(fullText);
+      weightCandidate ??= _extractByRegex(normalizedText);
 
       // Logic 4: Fallback số đơn lẻ quanh khu vực KL
       if (weightCandidate == null && klIndex != -1) {
@@ -317,7 +354,7 @@ class AIHelper {
     String vanBanSach = vanBanTho.replaceAll(RegExp(r'\b\d+[.,]\d+[.,]\d+\b'), '');
     vanBanSach = vanBanSach.replaceAll(RegExp(r'\b\d{6,}\b'), '');
 
-    final patternKw = RegExp(r'(?:khối lượng|khoi luong|trọng lượng|trong luong|kl|tl|khối lượng tịnh)\s*(?:tịnh|tinh)?[^\d]{0,15}?(\d+(?:[.,]\d+)?)\s*(g|kg|gr|k)?', caseSensitive: false);
+    final patternKw = RegExp(r'(?:khoi luong|trong luong|kl|tl)\s*(?:tinh)?[^\d]{0,15}?(\d+(?:[.,]\d+)?)\s*(g|kg|gr|k)?', caseSensitive: false);
     for (final m in patternKw.allMatches(vanBanSach)) {
       try {
         double so = double.parse(m.group(1)!.replaceAll(',', '.'));
@@ -369,6 +406,16 @@ class AIHelper {
     return null;
   }
 }
+
+
+
+
+
+
+
+
+
+
 
 
 
