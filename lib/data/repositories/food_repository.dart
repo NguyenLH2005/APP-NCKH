@@ -1,4 +1,4 @@
-﻿import 'package:flutter/services.dart';
+import 'package:flutter/services.dart';
 import 'package:csv/csv.dart';
 
 class FoodRepository {
@@ -37,7 +37,7 @@ class FoodRepository {
 
   // Hàm chuẩn hóa chuỗi (chữ thường, bỏ khoảng trắng thừa)
   String _normalizeString(String input) {
-    return input.trim().toLowerCase();
+    return input.trim().toLowerCase().replaceAll(RegExp(r'\s+'), ' ');
   }
 
   // Hàm tra cứu gần đúng (Substring matching), ưu tiên tên ngắn nhất
@@ -61,6 +61,14 @@ class FoodRepository {
     }
     
     return null;
+  }
+
+  // Lấy toàn bộ danh sách thực phẩm trên RAM để phục vụ thuật toán lọc món ăn kèm
+  List<Map<String, dynamic>> getAllFoods() {
+    if (_headers.isEmpty) return [];
+    return _foodData.values
+        .map((row) => Map<String, dynamic>.fromIterables(_headers, row))
+        .toList();
   }
 }
 

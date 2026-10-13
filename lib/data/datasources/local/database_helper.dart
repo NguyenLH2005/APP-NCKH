@@ -1,10 +1,10 @@
-﻿import 'package:sqflite/sqflite.dart';
+import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
 
 import '../../models/scan_history_model.dart';
+import '../../models/user_profile_model.dart';
 
 class DatabaseHelper {
-  // Khởi tạo Singleton để đảm bảo app chỉ có 1 kết nối database
   static final DatabaseHelper instance = DatabaseHelper._init();
   static Database? _database;
 
@@ -16,24 +16,22 @@ class DatabaseHelper {
     return _database!;
   }
 
-  // Hàm khởi tạo và mở Database
   Future<Database> _initDB(String filePath) async {
     final dbPath = await getDatabasesPath();
     final path = join(dbPath, filePath);
 
     return await openDatabase(
-      path, 
-      version: 2, // Đổi sang version 2 để DB tự Update
+      path,
+      version: 6,
       onCreate: _createDB,
       onUpgrade: (db, oldVersion, newVersion) async {
-        // Xóa bảng cũ và tạo lại nếu có phiên bản mới
         await db.execute('DROP TABLE IF EXISTS scan_history');
+        await db.execute('DROP TABLE IF EXISTS user_profile');
         await _createDB(db, newVersion);
-      }
+      },
     );
   }
 
-  // Lệnh SQL tạo bảng Lịch sử
   Future _createDB(Database db, int version) async {
     await db.execute('''
     CREATE TABLE scan_history (
@@ -44,36 +42,93 @@ class DatabaseHelper {
       food_name TEXT NOT NULL,
       weight REAL,
       nutrition_data TEXT NOT NULL,
+      main_group TEXT NOT NULL,
       created_at TEXT NOT NULL
+    )
+    ''');
+
+    await db.execute('''
+
+    CREATE TABLE user_profile (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      dob TEXT NOT NULL,
+      weight REAL NOT NULL,
+      height REAL NOT NULL,
+      gender TEXT NOT NULL,
+      activity_factor REAL NOT NULL,
+      goal TEXT NOT NULL,
+      medical_conditions TEXT NOT NULL,
+      medical_flags TEXT NOT NULL,
+      bmr REAL NOT NULL,
+      tdee REAL NOT NULL,
+      target_calories REAL NOT NULL,
+      budget_protein REAL NOT NULL,
+      budget_carb REAL NOT NULL,
+      budget_fat REAL NOT NULL,
+      budget_fiber REAL NOT NULL,
+      ceiling_sugar REAL NOT NULL,
+      ceiling_sodium REAL NOT NULL,
+      ceiling_sat_fat REAL NOT NULL,
+      ceiling_protein_kidney REAL NOT NULL
     )
     ''');
   }
 
-  // --- CÁC HÀM THAO TÁC DỮ LIỆU ---
-
-  // 1. Thêm một lượt quét mới vào lịch sử
+  // --- SCAN HISTORY ---
   Future<int> insertScan(ScanHistory scan) async {
     final db = await instance.database;
     return await db.insert('scan_history', scan.toMap());
   }
 
-  // 2. Lấy toàn bộ lịch sử quét (Sắp xếp thời gian mới nhất lên đầu)
+  Future<int> updateScan(ScanHistory scan) async {
+    final db = await instance.database;
+    return await db.update(
+      'scan_history',
+      scan.toMap(),
+      where: 'id = ?',
+      whereArgs: [scan.id],
+    );
+  }
+
   Future<List<ScanHistory>> getAllScans() async {
     final db = await instance.database;
     final result = await db.query('scan_history', orderBy: 'created_at DESC');
-
     return result.map((map) => ScanHistory.fromMap(map)).toList();
   }
-  // 3. Xóa các lịch sử quét dựa trên danh sách ID
+
   Future<void> deleteScans(List<int> ids) async {
     final db = await instance.database;
     if (ids.isEmpty) return;
-    
     final placeholders = List.filled(ids.length, '?').join(',');
     await db.delete(
       'scan_history',
       where: 'id IN ($placeholders)',
       whereArgs: ids,
     );
+  }
+
+  // --- USER PROFILE ---
+  Future<UserProfile?> getUserProfile() async {
+    final db = await instance.database;
+    final result = await db.query('user_profile', limit: 1);
+    if (result.isNotEmpty) {
+      return UserProfile.fromMap(result.first);
+    }
+    return null;
+  }
+
+  Future<int> saveUserProfile(UserProfile profile) async {
+    final db = await instance.database;
+    final existing = await getUserProfile();
+    if (existing != null) {
+      return await db.update(
+        'user_profile',
+        profile.toMap(),
+        where: 'id = ?',
+        whereArgs: [existing.id],
+      );
+    } else {
+      return await db.insert('user_profile', profile.toMap());
+    }
   }
 }

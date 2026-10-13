@@ -1,4 +1,4 @@
-import 'dart:convert';
+﻿import 'dart:convert';
 
 class ScanHistory {
   final int? id;
@@ -7,7 +7,8 @@ class ScanHistory {
   final String? croppedLabelImage;
   final String foodName;
   final double? weight;
-  final String nutritionData; // Chuỗi JSON chứa toàn bộ dinh dưỡng
+  final String nutritionData;
+  final String mainGroup; // Nhóm dinh dưỡng chính (từ CSV)
   final DateTime createdAt;
 
   ScanHistory({
@@ -18,10 +19,10 @@ class ScanHistory {
     required this.foodName,
     this.weight,
     required this.nutritionData,
+    required this.mainGroup,
     required this.createdAt,
   });
 
-  // Chuyển Object thành Map để Insert vào SQLite
   Map<String, dynamic> toMap() {
     return {
       'id': id,
@@ -31,11 +32,11 @@ class ScanHistory {
       'food_name': foodName,
       'weight': weight,
       'nutrition_data': nutritionData,
+      'main_group': mainGroup,
       'created_at': createdAt.toIso8601String(),
     };
   }
 
-  // Lấy data từ SQLite ra và chuyển ngược lại thành Object
   factory ScanHistory.fromMap(Map<String, dynamic> map) {
     return ScanHistory(
       id: map['id'],
@@ -45,10 +46,10 @@ class ScanHistory {
       foodName: map['food_name'],
       weight: map['weight'],
       nutritionData: map['nutrition_data'],
+      mainGroup: map['main_group'] ?? 'Chưa phân loại',
       createdAt: DateTime.parse(map['created_at']),
     );
   }
 
-  // Hàm phụ trợ siêu tiện lợi: Gọi hàm này để UI vẽ bảng chi tiết dinh dưỡng luôn
   List<dynamic> get decodedNutrition => jsonDecode(nutritionData);
 }

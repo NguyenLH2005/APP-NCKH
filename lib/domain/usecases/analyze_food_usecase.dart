@@ -24,18 +24,53 @@ class AnalyzeFoodUseCase {
 
       // BẢN ĐỒ ÁNH XẠ: Chuyển tên từ AI sang tên chuẩn của File CSV
       final Map<String, String> csvNameMapper = {
-        'Bạch tuộc': 'mực, tươi', 
-        'Cà chua': 'cà chua, tươi',
+        'Bạch tuộc': 'mực, tươi',
+        'Bắp cải': 'cải bắp trắng, tươi',
+        'Bầu': 'quả bầu, tươi',
+        'Bí đỏ': 'quả bí ngô, tươi',
+        'Bơ': 'quả bơ vỏ xanh, tươi',
+        'Cà chua': 'quả cà chua, tươi',
+        'Cá điêu hồng': 'cá điêu hồng',
         'Cá hồi': 'cá hồi, tươi',
+        'Cá lóc': 'cá quả, tươi',
+        'Cá ngừ': 'cá ngừ, tươi',
         'Cà rốt': 'củ cà rốt, tươi',
-        'Chuối': 'chuối tiêu, tươi', 
-        'Dưa leo': 'dưa chuột, tươi', 
+        'Cá thu': 'cá thu, tươi',
+        'Cải xanh': 'cải xanh, tươi',
+        'Cam': 'cam, tươi',
+        'Chôm chôm': 'chôm chôm, tươi',
+        'Chuối': 'chuối tiêu, tươi',
+        'Dâu tây': 'dâu tây, tươi',
+        'Đu đủ': 'đu đủ chín, tươi',
+        'Dưa hấu': 'dưa hấu, tươi',
+        'Dưa leo': 'dưa chuột, tươi',
+        'Ếch': 'ếch (thịt đùi), tươi',
+        'Hạnh nhân': 'hạt hạnh nhân rang',
+        'Khổ qua': 'mướp đắng, tươi',
+        'Khoai lang': 'khoai lang, tươi',
+        'Khoai tây': 'khoai tây, tươi',
+        'Lê': 'lê, tươi',
         'Mực': 'mực, tươi',
-        'Táo': 'táo tây, tươi', 
-        'Thịt bò': 'thịt bò, bắp, sống', 
+        'Nấm đùi gà': 'nấm thường, tươi',
+        'Nấm kim châm': 'nấm kim châm',
+        'Nấm rơm': 'nấm rơm, tươi',
+        'Ngô': 'ngô, cả bắp, tươi',
+        'Nho': 'nho ngọt, tươi',
+        'Óc chó': 'hạt óc chó rang',
+        'Ổi': 'ổi, quả chín, tươi',
+        'Ớt chuông': 'ớt đỏ to, tươi',
+        'Rau muống': 'rau muống, tươi',
+        'Sầu riêng': 'sầu riêng, tươi',
+        'Súp lơ': 'súp lơ xanh, tươi',
+        'Táo': 'táo tây, tươi',
+        'Thanh long': 'quả thanh long, tươi',
+        'Thịt bò': 'thịt bò, bắp, sống',
         'Thịt gà': 'thịt gà ta, tươi',
-        'Thịt heo': 'thịt lợn, nạc vai, tươi', 
+        'Thịt heo': 'thịt lợn, nạc, tươi',
         'Tôm': 'tôm biển, tươi',
+        'Trứng': 'trứng gà ta',
+        'Vải': 'vải, tươi',
+        'Xoài': 'xoài chín, tươi',
       };
       
       final String searchString = csvNameMapper[detectedName] ?? detectedName;
@@ -69,6 +104,7 @@ class AnalyzeFoodUseCase {
       }
 
       // Lấy các chỉ số gốc trên 100g (Lưu ý: đã đổi tên energy thành Năng lượng)
+      final String mainGroup = foodData['Nhóm Dinh Dưỡng Chính']?.toString().trim() ?? 'Chưa phân loại';
       final double energy100g = double.tryParse(foodData['Năng lượng']?.toString() ?? '0') ?? 0;
       final double protein100g = double.tryParse(foodData['Chất đạm']?.toString() ?? '0') ?? 0;
       final double fat100g = double.tryParse(foodData['Chất béo (Fat)']?.toString() ?? '0') ?? 0;
@@ -170,6 +206,7 @@ class AnalyzeFoodUseCase {
         foodName: detectedName,
         weight: detectedWeightInGrams,
         nutritionData: jsonNutritionData,
+        mainGroup: mainGroup,
         createdAt: DateTime.now(),
       );
     } catch (e) {
@@ -195,6 +232,7 @@ class AnalyzeFoodUseCase {
     }
   }
 }
+
 
 
 

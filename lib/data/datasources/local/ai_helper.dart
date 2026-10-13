@@ -1,4 +1,4 @@
-﻿import 'dart:isolate';
+import 'dart:isolate';
 import 'dart:io';
 import 'dart:math';
 
@@ -25,9 +25,16 @@ class AIHelper {
   Interpreter? _classifyInterpreter;
 
   static const List<String> labels = [
-    'Bạch tuộc', 'Cà chua', 'Cá hồi', 'Cà rốt', 
-    'Chuối', 'Dưa leo', 'Mực', 'Táo', 
-    'Thịt bò', 'Thịt gà', 'Thịt heo', 'Tôm'
+    'Bạch tuộc', 'Bắp cải', 'Bầu', 'Bí đỏ', 'Bơ', 
+    'Cà chua', 'Cá điêu hồng', 'Cá hồi', 'Cá lóc', 'Cá ngừ', 
+    'Cà rốt', 'Cá thu', 'Cải xanh', 'Cam', 'Chôm chôm', 
+    'Chuối', 'Dâu tây', 'Đu đủ', 'Dưa hấu', 'Dưa leo', 
+    'Ếch', 'Hạnh nhân', 'Khổ qua', 'Khoai lang', 'Khoai tây', 
+    'Lê', 'Mực', 'Nấm đùi gà', 'Nấm kim châm', 'Nấm rơm', 
+    'Ngô', 'Nho', 'Óc chó', 'Ổi', 'Ớt chuông', 
+    'Rau muống', 'Sầu riêng', 'Súp lơ', 'Táo', 'Thanh long', 
+    'Thịt bò', 'Thịt gà', 'Thịt heo', 'Tôm', 'Trứng', 
+    'Vải', 'Xoài'
   ];
 
   Future<void> init() async {
@@ -218,22 +225,22 @@ class AIHelper {
     if (isolateResult == null) throw Exception("Không thể đọc ảnh để phân loại");
     var input = isolateResult;
 
-    // Output là 1 mảng 1x12 (12 classes)
-    var output = List.filled(1 * 12, 0.0).reshape([1, 12]);
+    // Output là 1 mảng 1xN (N = labels.length, hiện tại là 47 classes)
+    var output = List.filled(1 * labels.length, 0.0).reshape([1, labels.length]);
 
     _classifyInterpreter!.run(input, output);
 
     // Tìm giá trị cao nhất (Argmax)
-    double maxProb = 0.0;
+    double maxProb = -double.infinity;
     int maxIndex = 0;
-    for (int i = 0; i < 12; i++) {
+    for (int i = 0; i < labels.length; i++) {
       if (output[0][i] > maxProb) {
         maxProb = output[0][i];
         maxIndex = i;
       }
     }
 
-    return labels[maxIndex]; // Trả về chữ "Thịt bò"
+    return labels[maxIndex];
   }
 
   /// 3. CHẠY MODEL ML KIT ĐỂ ĐỌC CHỮ VÀ BÓC TÁCH KHỐI LƯỢNG (Bản chuẩn Python model2.py)

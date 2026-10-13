@@ -1,0 +1,233 @@
+import 'dart:convert';
+
+class UserProfile {
+  final int? id;
+  final String dob;
+  final double weight;
+  final double height;
+  final String gender;
+  final double activityFactor;
+  final String goal;
+  final List<String> medicalConditions;
+
+  // Các trường tính toán sẵn lưu cố định trong CSDL
+  final String medicalFlags; // 5-bit string (Bit 0: Tiểu đường, 1: Huyết áp, 2: Mỡ máu, 3: Gout, 4: Thận)
+  final double bmr;
+  final double tdee;
+  final double targetCalories;
+  final double budgetProtein;
+  final double budgetCarb;
+  final double budgetFat;
+  final double budgetFiber;
+  final double ceilingSugar;
+  final double ceilingSodium;
+  final double ceilingSatFat;
+  final double ceilingProteinKidney;
+
+  UserProfile({
+    this.id,
+    required this.dob,
+    required this.weight,
+    required this.height,
+    required this.gender,
+    required this.activityFactor,
+    required this.goal,
+    required this.medicalConditions,
+    required this.medicalFlags,
+    required this.bmr,
+    required this.tdee,
+    required this.targetCalories,
+    required this.budgetProtein,
+    required this.budgetCarb,
+    required this.budgetFat,
+    required this.budgetFiber,
+    required this.ceilingSugar,
+    required this.ceilingSodium,
+    required this.ceilingSatFat,
+    required this.ceilingProteinKidney,
+  });
+
+  static String encodeMedicalFlags(List<String> conditions) {
+    final b0 = conditions.contains('Tiểu đường') ? '1' : '0';
+    final b1 = conditions.contains('Huyết áp cao') ? '1' : '0';
+    final b2 = conditions.contains('Mỡ máu / Tim mạch') ? '1' : '0';
+    final b3 = conditions.contains('Gout') ? '1' : '0';
+    final b4 = conditions.contains('Bệnh Thận') ? '1' : '0';
+    return '$b0$b1$b2$b3$b4';
+  }
+
+  static List<String> decodeMedicalFlags(String flags) {
+    final list = <String>[];
+    if (flags.length >= 5) {
+      if (flags[0] == '1') list.add('Tiểu đường');
+      if (flags[1] == '1') list.add('Huyết áp cao');
+      if (flags[2] == '1') list.add('Mỡ máu / Tim mạch');
+      if (flags[3] == '1') list.add('Gout');
+      if (flags[4] == '1') list.add('Bệnh Thận');
+    }
+    return list;
+  }
+
+  factory UserProfile.create({
+    int? id,
+    required String dob,
+    required double weight,
+    required double height,
+    required String gender,
+    required double activityFactor,
+    required String goal,
+    required List<String> medicalConditions,
+  }) {
+    int age = 25;
+    final dobParts = dob.split('-');
+    if (dobParts.length == 3) {
+      final dobDate = DateTime(int.parse(dobParts[0]), int.parse(dobParts[1]), int.parse(dobParts[2]));
+      final today = DateTime.now();
+      age = today.year - dobDate.year;
+      if (today.month < dobDate.month || (today.month == dobDate.month && today.day < dobDate.day)) {
+        age--;
+      }
+    }
+
+    // 1. Mifflin-St Jeor
+    double bmr;
+    if (gender == 'Nam') {
+      bmr = (10 * weight) + (6.25 * height) - (5 * age) + 5;
+    } else {
+      bmr = (10 * weight) + (6.25 * height) - (5 * age) - 161;
+    }
+
+    // 2. TDEE
+    double tdee = bmr * activityFactor;
+
+    // 3. Target Calories
+    double targetCalories = tdee;
+    if (goal == 'Giảm cân') {
+      targetCalories = tdee - 500;
+    } else if (goal == 'Tăng cân') {
+      targetCalories = tdee + 500;
+    }
+
+    // 4. Macro ratios theo mục tiêu (NIN / CDC)
+    double ratioP = 0.20;
+    double ratioC = 0.50;
+    double ratioF = 0.30;
+    if (goal == 'Giảm cân') {
+      ratioP = 0.30;
+      ratioC = 0.40;
+      ratioF = 0.30;
+    } else if (goal == 'Tăng cân') {
+      ratioP = 0.20;
+      ratioC = 0.55;
+      ratioF = 0.25;
+    }
+
+    double budgetProtein = (targetCalories * ratioP) / 4;
+    double budgetCarb = (targetCalories * ratioC) / 4;
+    double budgetFat = (targetCalories * ratioF) / 9;
+    double budgetFiber = 30.0;
+
+    final flags = encodeMedicalFlags(medicalConditions);
+
+    // 5. Ceilings y khoa cá nhân hóa
+    // Đường: <= 10% TDEE người thường; <= 5% TDEE tiểu đường (WHO/ADA)
+    double ceilingSugar = (flags[0] == '1')
+        ? (targetCalories * 0.05) / 4
+        : (targetCalories * 0.10) / 4;
+
+    // Natri: 2000mg người thường; 1500mg huyết áp cao (WHO/AHA)
+    double ceilingSodium = (flags[1] == '1') ? 1500.0 : 2000.0;
+
+    // Béo bão hòa: < 10% TDEE người thường; < 7% TDEE mỡ máu / tim mạch (AHA)
+    double ceilingSatFat = (flags[2] == '1')
+        ? (targetCalories * 0.07) / 9
+        : (targetCalories * 0.10) / 9;
+
+    // Bệnh thận: trần đạm = weight * 0.6g (KDIGO 2024)
+    double ceilingProteinKidney = (flags[4] == '1') ? (weight * 0.6) : -1.0;
+
+    // Nếu bệnh thận, ghi đè luôn ngân sách đạm ngày
+    if (flags[4] == '1') {
+      budgetProtein = ceilingProteinKidney;
+    }
+
+    return UserProfile(
+      id: id,
+      dob: dob,
+      weight: weight,
+      height: height,
+      gender: gender,
+      activityFactor: activityFactor,
+      goal: goal,
+      medicalConditions: medicalConditions,
+      medicalFlags: flags,
+      bmr: bmr,
+      tdee: tdee,
+      targetCalories: targetCalories,
+      budgetProtein: budgetProtein,
+      budgetCarb: budgetCarb,
+      budgetFat: budgetFat,
+      budgetFiber: budgetFiber,
+      ceilingSugar: ceilingSugar,
+      ceilingSodium: ceilingSodium,
+      ceilingSatFat: ceilingSatFat,
+      ceilingProteinKidney: ceilingProteinKidney,
+    );
+  }
+
+  Map<String, dynamic> toMap() {
+    final Map<String, dynamic> map = {
+      'dob': dob,
+      'weight': weight,
+      'height': height,
+      'gender': gender,
+      'activity_factor': activityFactor,
+      'goal': goal,
+      'medical_conditions': jsonEncode(medicalConditions),
+      'medical_flags': medicalFlags,
+      'bmr': bmr,
+      'tdee': tdee,
+      'target_calories': targetCalories,
+      'budget_protein': budgetProtein,
+      'budget_carb': budgetCarb,
+      'budget_fat': budgetFat,
+      'budget_fiber': budgetFiber,
+      'ceiling_sugar': ceilingSugar,
+      'ceiling_sodium': ceilingSodium,
+      'ceiling_sat_fat': ceilingSatFat,
+      'ceiling_protein_kidney': ceilingProteinKidney,
+    };
+    if (id != null) {
+      map['id'] = id;
+    }
+    return map;
+  }
+
+  factory UserProfile.fromMap(Map<String, dynamic> map) {
+    final flags = map['medical_flags']?.toString() ?? '00000';
+    return UserProfile(
+      id: map['id'],
+      dob: map['dob'],
+      weight: (map['weight'] as num).toDouble(),
+      height: (map['height'] as num).toDouble(),
+      gender: map['gender'],
+      activityFactor: (map['activity_factor'] as num).toDouble(),
+      goal: map['goal'] ?? 'Giữ dáng',
+      medicalConditions: map['medical_conditions'] != null
+          ? List<String>.from(jsonDecode(map['medical_conditions']))
+          : decodeMedicalFlags(flags),
+      medicalFlags: flags,
+      bmr: (map['bmr'] as num?)?.toDouble() ?? 0.0,
+      tdee: (map['tdee'] as num?)?.toDouble() ?? 0.0,
+      targetCalories: (map['target_calories'] as num?)?.toDouble() ?? 0.0,
+      budgetProtein: (map['budget_protein'] as num?)?.toDouble() ?? 0.0,
+      budgetCarb: (map['budget_carb'] as num?)?.toDouble() ?? 0.0,
+      budgetFat: (map['budget_fat'] as num?)?.toDouble() ?? 0.0,
+      budgetFiber: (map['budget_fiber'] as num?)?.toDouble() ?? 30.0,
+      ceilingSugar: (map['ceiling_sugar'] as num?)?.toDouble() ?? 0.0,
+      ceilingSodium: (map['ceiling_sodium'] as num?)?.toDouble() ?? 2000.0,
+      ceilingSatFat: (map['ceiling_sat_fat'] as num?)?.toDouble() ?? 0.0,
+      ceilingProteinKidney: (map['ceiling_protein_kidney'] as num?)?.toDouble() ?? -1.0,
+    );
+  }
+}

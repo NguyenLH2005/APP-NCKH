@@ -1,7 +1,8 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 
 import 'scan_screen.dart';
 import 'history_screen.dart';
+import 'profile_screen.dart';
 
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
@@ -14,7 +15,7 @@ class _MainScreenState extends State<MainScreen> {
   int _currentIndex = 0;
 
   // Danh sách các màn hình tương ứng với từng Tab
-  final List<Widget> _screens = [const ScanScreen(), const HistoryScreen()];
+  final List<Widget> _screens = [const ScanScreen(), const HistoryScreen(), const ProfileScreen()];
 
   @override
   Widget build(BuildContext context) {
@@ -30,13 +31,13 @@ class _MainScreenState extends State<MainScreen> {
         selectedItemColor: Colors.green,
         unselectedItemColor: Colors.grey,
         items: const [
-          BottomNavigationBarItem(
-            icon: Icon(Icons.qr_code_scanner),
-            label: 'Tra Cứu',
-          ),
-          BottomNavigationBarItem(icon: Icon(Icons.history), label: 'Lịch Sử'),
+          BottomNavigationBarItem(icon: Icon(Icons.qr_code_scanner), label: 'Tra cứu'),
+          BottomNavigationBarItem(icon: Icon(Icons.history), label: 'Lịch sử'),
+          BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Hồ sơ'),
         ],
       ),
     );
   }
 }
+
+
