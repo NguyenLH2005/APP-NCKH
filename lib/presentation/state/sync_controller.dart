@@ -211,32 +211,7 @@ class SyncController extends Notifier<AuthUserState> {
     try {
       // 1. Lấy User Profile
       final profile = await DatabaseHelper.instance.getUserProfile();
-      Map<String, dynamic>? profileMap;
-      if (profile != null) {
-        profileMap = {
-          'dob': profile.dob,
-          'weight': profile.weight,
-          'height': profile.height,
-          'gender': profile.gender,
-          'activityFactor': profile.activityFactor,
-          'goal': profile.goal,
-          'medicalConditions': profile.medicalConditions,
-          'medicalFlags': profile.medicalFlags,
-          'bmr': profile.bmr,
-          'tdee': profile.tdee,
-          'targetCalories': profile.targetCalories,
-          'budgetProtein': profile.budgetProtein,
-          'budgetCarb': profile.budgetCarb,
-          'budgetFat': profile.budgetFat,
-          'budgetFiber': profile.budgetFiber,
-          'ceilingSugar': profile.ceilingSugar,
-          'ceilingSodium': profile.ceilingSodium,
-          'ceilingSatFat': profile.ceilingSatFat,
-          'ceilingProteinKidney': profile.ceilingProteinKidney,
-          'allergies': profile.allergies,
-          'isObesityMode': profile.isObesityMode,
-        };
-      }
+      final Map<String, dynamic>? profileMap = profile?.toCloudMap();
 
       // 2. Lấy các món ăn chưa sync
       final unsyncedScans = await DatabaseHelper.instance.getUnsyncedScans();
@@ -327,39 +302,9 @@ class SyncController extends Notifier<AuthUserState> {
       if (data != null) {
         // 1. Phục hồi hồ sơ nếu có
         if (data['profile'] != null) {
-          final p = data['profile'];
-          final profile = UserProfile(
-            dob: p['dob']?.toString() ?? '2000-01-01',
-            weight: _parseNum(p['weight'], 60.0),
-            height: _parseNum(p['height'], 170.0),
-            gender: p['gender']?.toString() ?? 'Nam',
-            activityFactor: _parseNum(p['activity_factor'] ?? p['activityFactor'], 1.2),
-            goal: p['goal']?.toString() ?? 'Giữ dáng',
-            medicalConditions: p['medical_conditions'] != null 
-                ? (p['medical_conditions'] is String 
-                    ? (jsonDecode(p['medical_conditions']) as List).map((e) => e.toString()).toList() 
-                    : (p['medical_conditions'] as List).map((e) => e.toString()).toList())
-                : (p['medicalConditions'] != null ? (p['medicalConditions'] as List).map((e) => e.toString()).toList() : []),
-            medicalFlags: p['medical_flags']?.toString() ?? p['medicalFlags']?.toString() ?? '',
-            allergies: p['allergies'] != null
-                ? (p['allergies'] is String
-                    ? (jsonDecode(p['allergies']) as List).map((e) => e.toString()).toList()
-                    : (p['allergies'] as List).map((e) => e.toString()).toList())
-                : const [],
-            isObesityMode: p['is_obesity_mode'] == 1 || p['is_obesity_mode'] == true || p['isObesityMode'] == true,
-            bmr: _parseNum(p['bmr'], 0.0),
-            tdee: _parseNum(p['tdee'], 0.0),
-            targetCalories: _parseNum(p['target_calories'] ?? p['targetCalories'], 0.0),
-            budgetProtein: _parseNum(p['budget_protein'] ?? p['budgetProtein'], 0.0),
-            budgetCarb: _parseNum(p['budget_carb'] ?? p['budgetCarb'], 0.0),
-            budgetFat: _parseNum(p['budget_fat'] ?? p['budgetFat'], 0.0),
-            budgetFiber: _parseNum(p['budget_fiber'] ?? p['budgetFiber'], 30.0),
-            ceilingSugar: _parseNum(p['ceiling_sugar'] ?? p['ceilingSugar'], 0.0),
-            ceilingSodium: _parseNum(p['ceiling_sodium'] ?? p['ceilingSodium'], 2000.0),
-            ceilingSatFat: _parseNum(p['ceiling_sat_fat'] ?? p['ceilingSatFat'], 0.0),
-            ceilingProteinKidney: _parseNum(p['ceiling_protein_kidney'] ?? p['ceilingProteinKidney'], -1.0),
-            isSynced: 1,
-            updatedAt: p['updated_at']?.toString(),
+          final profile = UserProfile.fromMap(
+            Map<String, dynamic>.from(data['profile']),
+            forceIsSynced: 1,
           );
           await DatabaseHelper.instance.saveUserProfile(profile);
           ref.read(profileProvider.notifier).loadProfile();
@@ -443,12 +388,6 @@ class SyncController extends Notifier<AuthUserState> {
     }
     state = state.copyWith(isSyncing: false);
     return false;
-  }
-
-  double _parseNum(dynamic val, [double defaultVal = 0.0]) {
-    if (val == null) return defaultVal;
-    if (val is num) return val.toDouble();
-    return double.tryParse(val.toString()) ?? defaultVal;
   }
 
   double? _parseNullableNum(dynamic val) {

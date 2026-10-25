@@ -1,10 +1,6 @@
-// import 'dart:io';
-
 import 'package:flutter/material.dart';
-
-import '../../data/models/scan_history_model.dart';
-
 import 'package:intl/intl.dart';
+import '../../data/models/scan_history_model.dart';
 
 class ResultScreen extends StatelessWidget {
   final ScanHistory resultData;
@@ -13,12 +9,8 @@ class ResultScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Gọi hàm phụ trợ để bung chuỗi JSON thành List
     final nutritionList = resultData.decodedNutrition;
-
-    // KHAI BÁO BIẾN THỜI GIAN Ở ĐÂY (Hết báo lỗi đỏ nhé)
-    final timeString = DateFormat('HH:mm dd/MM/yyyy')
-        .format(resultData.createdAt);
+    final timeString = DateFormat('HH:mm dd/MM/yyyy').format(resultData.createdAt);
 
     return Scaffold(
       backgroundColor: Colors.grey.shade100,
@@ -35,14 +27,13 @@ class ResultScreen extends StatelessWidget {
       body: SingleChildScrollView(
         child: Column(
           children: [
-            // 1. KHU VỰC ẢNH VÀ TỔNG QUAN
+            // 1. KHU VỰC TỔNG QUAN
             Container(
               color: Colors.white,
               width: double.infinity,
               padding: const EdgeInsets.all(20),
               child: Column(
                 children: [
-                  // Thời gian ở góc phải
                   Align(
                     alignment: Alignment.centerRight,
                     child: Text(
@@ -53,11 +44,7 @@ class ResultScreen extends StatelessWidget {
                       ),
                     ),
                   ),
-                  const SizedBox(height: 12),
-
-                  // ĐÃ XÓA ẢNH THEO YÊU CẦU
                   const SizedBox(height: 16),
-
                   Text(
                     resultData.foodName.toUpperCase(),
                     style: const TextStyle(
@@ -78,9 +65,7 @@ class ResultScreen extends StatelessWidget {
                         borderRadius: BorderRadius.circular(20),
                       ),
                       child: Text(
-                        resultData.weight! >= 1000
-                            ? 'Khối lượng nhận diện: ${(resultData.weight! / 1000).toStringAsFixed(2).replaceAll(RegExp(r'0*$'), '').replaceAll(RegExp(r'\.$'), '')}kg'
-                            : 'Khối lượng nhận diện: ${resultData.weight!.toStringAsFixed(2).replaceAll(RegExp(r'0*$'), '').replaceAll(RegExp(r'\.$'), '')}g',
+                        'Khối lượng nhận diện: ${resultData.formatWeight(spaceBeforeUnit: false)}',
                         style: TextStyle(
                           fontSize: 16,
                           color: Colors.green.shade700,
@@ -132,9 +117,7 @@ class ResultScreen extends StatelessWidget {
                         Expanded(
                           flex: 1,
                           child: Text(
-                            resultData.weight! >= 1000
-                                ? 'Trên ${(resultData.weight! / 1000).toStringAsFixed(2).replaceAll(RegExp(r'0*$'), '').replaceAll(RegExp(r'\.$'), '')}kg'
-                                : 'Trên ${resultData.weight!.toStringAsFixed(2).replaceAll(RegExp(r'0*$'), '').replaceAll(RegExp(r'\.$'), '')}g',
+                            'Trên ${resultData.formatWeight(spaceBeforeUnit: false)}',
                             textAlign: TextAlign.right,
                             style: const TextStyle(
                               color: Colors.green,

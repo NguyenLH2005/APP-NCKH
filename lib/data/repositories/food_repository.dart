@@ -135,14 +135,6 @@ class FoodRepository {
     return null;
   }
 
-  // Lấy toàn bộ danh sách thực phẩm trên RAM để phục vụ thuật toán lọc món ăn kèm
-  List<Map<String, dynamic>> getAllFoods() {
-    if (_headers.isEmpty) return [];
-    return _foodData.values
-        .map((row) => Map<String, dynamic>.fromIterables(_headers, row))
-        .toList();
-  }
-
   // Đóng gói mảng dinh dưỡng theo khối lượng (g) chuẩn xác
   List<Map<String, dynamic>> buildNutritionArray(Map<String, dynamic> foodData, double weightInGrams) {
     final ratio = weightInGrams / 100.0;

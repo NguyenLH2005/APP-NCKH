@@ -274,8 +274,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   Widget _buildBodyMetricsCard(UserProfile profile, int? age) {
     final double weight = profile.weight;
     final double height = profile.height;
-    final double heightM = height / 100;
-    final double bmi = (heightM > 0) ? (weight / (heightM * heightM)) : 0.0;
+    final double bmi = profile.bmi;
 
     String bmiCategory = 'Bình thường';
     Color bmiColor = Colors.green.shade700;

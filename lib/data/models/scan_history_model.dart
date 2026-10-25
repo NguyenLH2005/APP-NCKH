@@ -106,4 +106,25 @@ class ScanHistory {
   }
 
   List<dynamic> get decodedNutrition => jsonDecode(nutritionData);
+
+  static String formatWeightValue(double weight, {bool spaceBeforeUnit = true}) {
+    final sep = spaceBeforeUnit ? ' ' : '';
+    if (weight >= 1000) {
+      final val = (weight / 1000)
+          .toStringAsFixed(2)
+          .replaceAll(RegExp(r'0*$'), '')
+          .replaceAll(RegExp(r'\.$'), '');
+      return '$val${sep}kg';
+    }
+    final val = weight
+        .toStringAsFixed(2)
+        .replaceAll(RegExp(r'0*$'), '')
+        .replaceAll(RegExp(r'\.$'), '');
+    return '$val${sep}g';
+  }
+
+  String formatWeight({String fallback = '100 g', bool spaceBeforeUnit = true}) {
+    if (weight == null) return fallback;
+    return formatWeightValue(weight!, spaceBeforeUnit: spaceBeforeUnit);
+  }
 }

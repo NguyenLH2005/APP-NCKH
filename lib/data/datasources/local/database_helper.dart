@@ -198,9 +198,4 @@ class DatabaseHelper {
     await db.delete('scan_history');
     await db.delete('user_profile');
   }
-
-  Future<void> close() async {
-    final db = await instance.database;
-    db.close();
-  }
 }

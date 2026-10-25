@@ -9,6 +9,12 @@ class HistoryController extends Notifier<void> {
   @override
   void build() {}
 
+  Future<void> updateScan(ScanHistory item) async {
+    if (item.id == null) return;
+    await DatabaseHelper.instance.updateScan(item);
+    ref.invalidate(historyProvider);
+  }
+
   Future<void> deleteRecords(List<ScanHistory> items) async {
     final ids = items.map((e) => e.id).whereType<int>().toList();
     if (ids.isEmpty) return;
@@ -44,4 +50,3 @@ class HistoryController extends Notifier<void> {
 final historyControllerProvider = NotifierProvider<HistoryController, void>(
   HistoryController.new,
 );
-

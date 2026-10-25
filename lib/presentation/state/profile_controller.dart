@@ -37,7 +37,7 @@ class ProfileController extends Notifier<ProfileState> {
     }
   }
 
-    Future<void> saveProfile(UserProfile profile) async {
+  Future<void> saveProfile(UserProfile profile) async {
     state = state.copyWith(isLoading: true);
     try {
       await DatabaseHelper.instance.saveUserProfile(profile);
@@ -68,29 +68,15 @@ class ProfileController extends Notifier<ProfileState> {
   }
 
   void _calculateAndSetState(UserProfile profile) {
-    // Tính tuổi động
-    final dobParts = profile.dob.split('-');
-    if (dobParts.length == 3) {
-      final dobDate = DateTime(int.parse(dobParts[0]), int.parse(dobParts[1]), int.parse(dobParts[2]));
-      final today = DateTime.now();
-      int age = today.year - dobDate.year;
-      if (today.month < dobDate.month || (today.month == dobDate.month && today.day < dobDate.day)) {
-        age--;
-      }
-
-      state = ProfileState(
-        profile: profile,
-        age: age,
-        tdee: profile.tdee,
-        isLoading: false,
-      );
-    } else {
-      state = ProfileState(profile: profile, tdee: profile.tdee, isLoading: false);
-    }
+    state = ProfileState(
+      profile: profile,
+      age: profile.age,
+      tdee: profile.tdee,
+      isLoading: false,
+    );
   }
 }
 
 final profileProvider = NotifierProvider<ProfileController, ProfileState>(() {
   return ProfileController();
 });
-

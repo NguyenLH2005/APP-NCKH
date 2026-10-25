@@ -5,10 +5,10 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/models/scan_history_model.dart';
-import '../../data/datasources/local/database_helper.dart';
 import '../../domain/usecases/nutrition_suggestion_usecase.dart';
 
 import '../state/scan_controller.dart';
+import '../state/history_controller.dart';
 import '../state/profile_controller.dart';
 import '../state/sync_controller.dart';
 
@@ -105,7 +105,7 @@ class _FoundObjectScreenState extends ConsumerState<FoundObjectScreen> {
     if (widget.isFromScan) {
       WidgetsBinding.instance.addPostFrameCallback((_) async {
         if (_isEggFood) {
-          await _showEggSelectionModal(isAutoPrompt: true);
+          await _showEggSelectionModal();
         }
         if (_suggestionText == null && !_isLoadingSuggestion) {
           _fetchSuggestion();
@@ -201,23 +201,17 @@ class _FoundObjectScreenState extends ConsumerState<FoundObjectScreen> {
     final List<Map<String, dynamic>> nutritionArray = 
         ref.read(foodRepositoryProvider).buildNutritionArray(foodData, newWeight);
 
-    final updatedData = ScanHistory(
-      id: _currentData.id,
-      originalImage: _currentData.originalImage,
-      croppedFoodImage: _currentData.croppedFoodImage,
-      croppedLabelImage: _currentData.croppedLabelImage,
+    final updatedData = _currentData.copyWith(
       foodName: selectedEgg.displayName,
       weight: newWeight,
       nutritionData: jsonEncode(nutritionArray),
       mainGroup: mainGroup,
-      createdAt: _currentData.createdAt,
       isSynced: 0,
       updatedAt: DateTime.now(),
     );
 
     if (_currentData.id != null) {
-      await DatabaseHelper.instance.updateScan(updatedData);
-      ref.invalidate(historyProvider);
+      await ref.read(historyControllerProvider.notifier).updateScan(updatedData);
       ref.read(syncProvider.notifier).syncNow();
     }
 
@@ -229,7 +223,7 @@ class _FoundObjectScreenState extends ConsumerState<FoundObjectScreen> {
     }
   }
 
-  Future<void> _showEggSelectionModal({bool isAutoPrompt = false}) async {
+  Future<void> _showEggSelectionModal() async {
     EggOption selectedOption = _matchedEggOption;
     int quantity = _eggQuantity;
 
@@ -523,20 +517,14 @@ class _FoundObjectScreenState extends ConsumerState<FoundObjectScreen> {
           }
         }
         
-        final updatedData = ScanHistory(
-          id: _currentData.id,
-          originalImage: _currentData.originalImage,
-          croppedFoodImage: _currentData.croppedFoodImage,
-          croppedLabelImage: _currentData.croppedLabelImage,
-          foodName: _currentData.foodName,
+        final updatedData = _currentData.copyWith(
           weight: newWeight,
           nutritionData: jsonEncode(jsonArr),
-          mainGroup: _currentData.mainGroup,
-          createdAt: _currentData.createdAt,
+          isSynced: 0,
+          updatedAt: DateTime.now(),
         );
 
-        await DatabaseHelper.instance.updateScan(updatedData);
-        ref.invalidate(historyProvider);
+        await ref.read(historyControllerProvider.notifier).updateScan(updatedData);
         ref.read(syncProvider.notifier).syncNow();
 
         setState(() {
@@ -741,11 +729,9 @@ class _FoundObjectScreenState extends ConsumerState<FoundObjectScreen> {
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
                                   Text(
-                                    _currentData.weight != null 
-                                        ? (_currentData.weight! >= 1000 
-                                            ? '${(_currentData.weight! / 1000).toStringAsFixed(2).replaceAll(RegExp(r'0*$'), '').replaceAll(RegExp(r'\.$'), '')} kg' 
-                                            : '${_currentData.weight!.toStringAsFixed(2).replaceAll(RegExp(r'0*$'), '').replaceAll(RegExp(r'\.$'), '')} g')
-                                        : (_isEggFood ? '50 g' : '100 g'),
+                                    _currentData.formatWeight(
+                                      fallback: _isEggFood ? '50 g' : '100 g',
+                                    ),
                                     style: const TextStyle(
                                       fontSize: 20,
                                       fontWeight: FontWeight.bold,

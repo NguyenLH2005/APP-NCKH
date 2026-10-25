@@ -303,7 +303,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
                                     const SizedBox(height: 4),
                                     if (item.weight != null)
                                       Text(
-                                        '${item.weight}g',
+                                        item.formatWeight(spaceBeforeUnit: false),
                                         style: TextStyle(
                                           color: Colors.grey.shade600,
                                         ),

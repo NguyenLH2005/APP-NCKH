@@ -92,6 +92,32 @@ class UserProfile {
     return list;
   }
 
+  static int calculateAge(String dob) {
+    final dobParts = dob.split('-');
+    if (dobParts.length == 3) {
+      final year = int.tryParse(dobParts[0]);
+      final month = int.tryParse(dobParts[1]);
+      final day = int.tryParse(dobParts[2]);
+      if (year != null && month != null && day != null) {
+        final dobDate = DateTime(year, month, day);
+        final today = DateTime.now();
+        int age = today.year - dobDate.year;
+        if (today.month < dobDate.month || (today.month == dobDate.month && today.day < dobDate.day)) {
+          age--;
+        }
+        return age;
+      }
+    }
+    return 25;
+  }
+
+  int get age => calculateAge(dob);
+
+  double get bmi {
+    final heightInM = height / 100.0;
+    return (heightInM > 0) ? (weight / (heightInM * heightInM)) : 0.0;
+  }
+
   factory UserProfile.create({
     int? id,
     required String dob,
@@ -106,16 +132,7 @@ class UserProfile {
     int isSynced = 0,
     String? updatedAt,
   }) {
-    int age = 25;
-    final dobParts = dob.split('-');
-    if (dobParts.length == 3) {
-      final dobDate = DateTime(int.parse(dobParts[0]), int.parse(dobParts[1]), int.parse(dobParts[2]));
-      final today = DateTime.now();
-      age = today.year - dobDate.year;
-      if (today.month < dobDate.month || (today.month == dobDate.month && today.day < dobDate.day)) {
-        age--;
-      }
-    }
+    final int age = calculateAge(dob);
 
     // BMI theo chuẩn Châu Á của WHO
     final heightInM = height / 100.0;
@@ -257,41 +274,86 @@ class UserProfile {
     return map;
   }
 
-  factory UserProfile.fromMap(Map<String, dynamic> map) {
-    final flags = map['medical_flags']?.toString() ?? '000000';
+  Map<String, dynamic> toCloudMap() {
+    return {
+      'dob': dob,
+      'weight': weight,
+      'height': height,
+      'gender': gender,
+      'activityFactor': activityFactor,
+      'goal': goal,
+      'medicalConditions': medicalConditions,
+      'medicalFlags': medicalFlags,
+      'bmr': bmr,
+      'tdee': tdee,
+      'targetCalories': targetCalories,
+      'budgetProtein': budgetProtein,
+      'budgetCarb': budgetCarb,
+      'budgetFat': budgetFat,
+      'budgetFiber': budgetFiber,
+      'ceilingSugar': ceilingSugar,
+      'ceilingSodium': ceilingSodium,
+      'ceilingSatFat': ceilingSatFat,
+      'ceilingProteinKidney': ceilingProteinKidney,
+      'allergies': allergies,
+      'isObesityMode': isObesityMode,
+    };
+  }
+
+  static double _parseDouble(dynamic val, double defaultVal) {
+    if (val == null) return defaultVal;
+    if (val is num) return val.toDouble();
+    return double.tryParse(val.toString()) ?? defaultVal;
+  }
+
+  static List<String> _parseStringList(dynamic raw, List<String> fallback) {
+    if (raw == null) return fallback;
+    if (raw is String) {
+      try {
+        return List<String>.from(jsonDecode(raw));
+      } catch (_) {
+        return fallback;
+      }
+    }
+    if (raw is List) {
+      return raw.map((e) => e.toString()).toList();
+    }
+    return fallback;
+  }
+
+  factory UserProfile.fromMap(Map<String, dynamic> map, {int? forceIsSynced}) {
+    final flags = (map['medical_flags'] ?? map['medicalFlags'])?.toString() ?? '000000';
+    final rawConditions = map['medical_conditions'] ?? map['medicalConditions'];
     return UserProfile(
-      id: map['id'],
+      id: map['id'] is int ? map['id'] : null,
       dob: map['dob']?.toString() ?? '2000-01-01',
-      weight: (map['weight'] as num?)?.toDouble() ?? 60.0,
-      height: (map['height'] as num?)?.toDouble() ?? 170.0,
+      weight: _parseDouble(map['weight'], 60.0),
+      height: _parseDouble(map['height'], 170.0),
       gender: map['gender']?.toString() ?? 'Nam',
-      activityFactor: (map['activity_factor'] as num?)?.toDouble() ?? 1.2,
+      activityFactor: _parseDouble(map['activity_factor'] ?? map['activityFactor'], 1.2),
       goal: map['goal']?.toString() ?? 'Giữ dáng',
-      medicalConditions: map['medical_conditions'] != null
-          ? (map['medical_conditions'] is String
-              ? List<String>.from(jsonDecode(map['medical_conditions']))
-              : List<String>.from(map['medical_conditions']))
-          : decodeMedicalFlags(flags),
-      allergies: map['allergies'] != null
-          ? (map['allergies'] is String
-              ? List<String>.from(jsonDecode(map['allergies']))
-              : List<String>.from(map['allergies']))
-          : const [],
-      isObesityMode: map['is_obesity_mode'] == 1 || map['is_obesity_mode'] == true,
+      medicalConditions: _parseStringList(rawConditions, decodeMedicalFlags(flags)),
+      allergies: _parseStringList(map['allergies'], const []),
+      isObesityMode: map['is_obesity_mode'] == 1 ||
+          map['is_obesity_mode'] == true ||
+          map['isObesityMode'] == true,
       medicalFlags: flags,
-      bmr: (map['bmr'] as num?)?.toDouble() ?? 0.0,
-      tdee: (map['tdee'] as num?)?.toDouble() ?? 0.0,
-      targetCalories: (map['target_calories'] as num?)?.toDouble() ?? 0.0,
-      budgetProtein: (map['budget_protein'] as num?)?.toDouble() ?? 0.0,
-      budgetCarb: (map['budget_carb'] as num?)?.toDouble() ?? 0.0,
-      budgetFat: (map['budget_fat'] as num?)?.toDouble() ?? 0.0,
-      budgetFiber: (map['budget_fiber'] as num?)?.toDouble() ?? 30.0,
-      ceilingSugar: (map['ceiling_sugar'] as num?)?.toDouble() ?? 0.0,
-      ceilingSodium: (map['ceiling_sodium'] as num?)?.toDouble() ?? 2000.0,
-      ceilingSatFat: (map['ceiling_sat_fat'] as num?)?.toDouble() ?? 0.0,
-      ceilingProteinKidney: (map['ceiling_protein_kidney'] as num?)?.toDouble() ?? -1.0,
-      isSynced: map['is_synced'] ?? 0,
-      updatedAt: map['updated_at']?.toString(),
+      bmr: _parseDouble(map['bmr'], 0.0),
+      tdee: _parseDouble(map['tdee'], 0.0),
+      targetCalories: _parseDouble(map['target_calories'] ?? map['targetCalories'], 0.0),
+      budgetProtein: _parseDouble(map['budget_protein'] ?? map['budgetProtein'], 0.0),
+      budgetCarb: _parseDouble(map['budget_carb'] ?? map['budgetCarb'], 0.0),
+      budgetFat: _parseDouble(map['budget_fat'] ?? map['budgetFat'], 0.0),
+      budgetFiber: _parseDouble(map['budget_fiber'] ?? map['budgetFiber'], 30.0),
+      ceilingSugar: _parseDouble(map['ceiling_sugar'] ?? map['ceilingSugar'], 0.0),
+      ceilingSodium: _parseDouble(map['ceiling_sodium'] ?? map['ceilingSodium'], 2000.0),
+      ceilingSatFat: _parseDouble(map['ceiling_sat_fat'] ?? map['ceilingSatFat'], 0.0),
+      ceilingProteinKidney: _parseDouble(
+        map['ceiling_protein_kidney'] ?? map['ceilingProteinKidney'],
+        -1.0,
+      ),
+      isSynced: forceIsSynced ?? (map['is_synced'] ?? 0),
+      updatedAt: (map['updated_at'] ?? map['updatedAt'])?.toString(),
     );
   }
 }
