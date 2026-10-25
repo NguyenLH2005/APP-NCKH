@@ -3,11 +3,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../domain/usecases/analyze_food_usecase.dart';
 import '../../data/models/scan_history_model.dart';
 import '../../data/repositories/food_repository.dart';
-
-// 1. THÊM DÒNG IMPORT NÀY VÀO TRÊN CÙNG
 import '../../data/datasources/local/database_helper.dart';
+import 'sync_controller.dart';
 
-// 1. Cung cấp Repository và UseCase
+// Cung cấp Repository và UseCase
 final foodRepositoryProvider = Provider((ref) => FoodRepository());
 final analyzeUseCaseProvider = Provider((ref) {
   return AnalyzeFoodUseCase(ref.read(foodRepositoryProvider));
@@ -18,7 +17,7 @@ final historyProvider = FutureProvider<List<ScanHistory>>((ref) async {
   return await DatabaseHelper.instance.getAllScans();
 });
 
-// 2. Định nghĩa các trạng thái của màn hình
+// Định nghĩa các trạng thái của màn hình
 enum ScanStatus { initial, loading, success, error }
 
 class ScanState {
@@ -28,7 +27,7 @@ class ScanState {
   ScanState({this.status = ScanStatus.initial, this.result});
 }
 
-// 3. Controller điều phối luồng chạy
+// Controller điều phối luồng chạy
 class ScanController extends Notifier<ScanState> {
   @override
   ScanState build() => ScanState();
@@ -44,15 +43,13 @@ class ScanController extends Notifier<ScanState> {
     final result = await useCase.execute(imagePath);
 
     if (result != null) {
-      // 2. LƯU VÀO SQLITE NGAY TẠI ĐÂY TRƯỚC KHI BÁO SUCCESS CHO UI
       try {
         await DatabaseHelper.instance.insertScan(result);
 
         // Cập nhật lại danh sách lịch sử trên toàn app
         ref.invalidate(historyProvider);
-      } catch (e) {
-
-      }
+        ref.read(syncProvider.notifier).syncNow();
+      } catch (_) {}
 
       // Đẩy kết quả sang màn hình ResultScreen
       state = ScanState(status: ScanStatus.success, result: result);
@@ -66,7 +63,3 @@ class ScanController extends Notifier<ScanState> {
 final scanControllerProvider = NotifierProvider<ScanController, ScanState>(
   ScanController.new,
 );
-
-
-
-

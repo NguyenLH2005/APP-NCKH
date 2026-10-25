@@ -29,11 +29,66 @@ class FoodRepository {
           }
         }
       }
-
-    } catch (e) {
-
+    } catch (_) {
+      // Bỏ qua lỗi nạp dữ liệu nếu có sự cố IO
     }
   }
+
+  // Bản đồ ánh xạ: Tên nhận diện từ AI -> Tên danh mục chuẩn trong file CSV
+  static const Map<String, String> csvNameMapper = {
+    'Bạch tuộc': 'mực, tươi',
+    'Bắp cải': 'cải bắp trắng, tươi',
+    'Bầu': 'quả bầu, tươi',
+    'Bí đỏ': 'quả bí ngô, tươi',
+    'Bơ': 'quả bơ vỏ xanh, tươi',
+    'Cà chua': 'quả cà chua, tươi',
+    'Cá điêu hồng': 'cá điêu hồng',
+    'Cá hồi': 'cá hồi, tươi',
+    'Cá lóc': 'cá quả, tươi',
+    'Cá ngừ': 'cá ngừ, tươi',
+    'Cà rốt': 'củ cà rốt, tươi',
+    'Cá thu': 'cá thu, tươi',
+    'Cải xanh': 'cải xanh, tươi',
+    'Cam': 'cam, tươi',
+    'Chôm chôm': 'chôm chôm, tươi',
+    'Chuối': 'chuối tiêu, tươi',
+    'Dâu tây': 'dâu tây, tươi',
+    'Đu đủ': 'đu đủ chín, tươi',
+    'Dưa hấu': 'dưa hấu, tươi',
+    'Dưa leo': 'dưa chuột, tươi',
+    'Ếch': 'ếch (thịt đùi), tươi',
+    'Hạnh nhân': 'hạt hạnh nhân rang',
+    'Khổ qua': 'mướp đắng, tươi',
+    'Khoai lang': 'khoai lang, tươi',
+    'Khoai tây': 'khoai tây, tươi',
+    'Lê': 'lê, tươi',
+    'Mực': 'mực, tươi',
+    'Nấm đùi gà': 'nấm thường, tươi',
+    'Nấm kim châm': 'nấm kim châm',
+    'Nấm rơm': 'nấm rơm, tươi',
+    'Ngô': 'ngô, cả bắp, tươi',
+    'Nho': 'nho ngọt, tươi',
+    'Óc chó': 'hạt óc chó rang',
+    'Ổi': 'ổi, quả chín, tươi',
+    'Ớt chuông': 'ớt đỏ to, tươi',
+    'Rau muống': 'rau muống, tươi',
+    'Sầu riêng': 'sầu riêng, tươi',
+    'Súp lơ': 'súp lơ xanh, tươi',
+    'Táo': 'táo tây, tươi',
+    'Thanh long': 'quả thanh long, tươi',
+    'Thịt bò': 'thịt bò, bắp, sống',
+    'Thịt gà': 'thịt gà ta, tươi',
+    'Thịt heo': 'thịt lợn, nạc, tươi',
+    'Tôm': 'tôm biển, tươi',
+    'Trứng': 'Trứng gà công nghiệp',
+    'Trứng gà': 'Trứng gà công nghiệp',
+    'Trứng gà (công nghiệp)': 'Trứng gà công nghiệp',
+    'Trứng gà ta': 'Trứng gà ta',
+    'Trứng vịt': 'Trứng vịt',
+    'Trứng vịt lộn': 'Trứng vịt lộn',
+    'Vải': 'vải, tươi',
+    'Xoài': 'xoài chín, tươi',
+  };
 
   // Hàm chuẩn hóa chuỗi (chữ thường, bỏ khoảng trắng thừa)
   String _normalizeString(String input) {
@@ -42,7 +97,8 @@ class FoodRepository {
 
   // Hàm tra cứu gần đúng (Substring matching), ưu tiên tên ngắn nhất
   Map<String, dynamic>? findFoodByName(String name) {
-    final searchName = _normalizeString(name);
+    final mappedName = csvNameMapper[name] ?? name;
+    final searchName = _normalizeString(mappedName);
     
     String? bestMatchKey;
     
@@ -59,6 +115,22 @@ class FoodRepository {
       // Ghép Header với Dữ liệu thành một Map cho dễ lấy
       return Map.fromIterables(_headers, rowData);
     }
+
+    // Dự phòng: nếu mappedName khác name mà không tìm ra, thử tìm theo name gốc
+    if (mappedName != name) {
+      final rawSearchName = _normalizeString(name);
+      for (String key in _foodData.keys) {
+        if (key.contains(rawSearchName)) {
+          if (bestMatchKey == null || key.length < bestMatchKey.length) {
+            bestMatchKey = key;
+          }
+        }
+      }
+      if (bestMatchKey != null) {
+        final rowData = _foodData[bestMatchKey]!;
+        return Map.fromIterables(_headers, rowData);
+      }
+    }
     
     return null;
   }
@@ -70,5 +142,83 @@ class FoodRepository {
         .map((row) => Map<String, dynamic>.fromIterables(_headers, row))
         .toList();
   }
-}
 
+  // Đóng gói mảng dinh dưỡng theo khối lượng (g) chuẩn xác
+  List<Map<String, dynamic>> buildNutritionArray(Map<String, dynamic> foodData, double weightInGrams) {
+    final ratio = weightInGrams / 100.0;
+    final double energy100g = double.tryParse(foodData['Năng lượng']?.toString() ?? '0') ?? 0;
+    final double protein100g = double.tryParse(foodData['Chất đạm']?.toString() ?? '0') ?? 0;
+    final double fat100g = double.tryParse(foodData['Chất béo (Fat)']?.toString() ?? '0') ?? 0;
+    final double carb100g = double.tryParse(foodData['Chất bột đường']?.toString() ?? '0') ?? 0;
+    final double fiber100g = double.tryParse(foodData['Chất xơ']?.toString() ?? '0') ?? 0;
+
+    final String proteinUnit = foodData['Chất đạm_unit']?.toString().trim() ?? 'g';
+    final String fatUnit = foodData['Chất béo (Fat)_unit']?.toString().trim() ?? 'g';
+    final String carbUnit = foodData['Chất bột đường_unit']?.toString().trim() ?? 'g';
+    final String fiberUnit = foodData['Chất xơ_unit']?.toString().trim() ?? 'g';
+
+    final List<Map<String, dynamic>> nutritionArray = [
+      {
+        "id": "energy",
+        "name": "Năng lượng",
+        "per_100g": energy100g,
+        "per_label": double.parse((energy100g * ratio).toStringAsFixed(1)),
+        "unit": "kcal",
+      },
+      {
+        "id": "protein",
+        "name": "Protein",
+        "per_100g": protein100g,
+        "per_label": double.parse((protein100g * ratio).toStringAsFixed(1)),
+        "unit": proteinUnit.isNotEmpty ? proteinUnit : 'g',
+      },
+      {
+        "id": "total_fat",
+        "name": "Chất béo (Fat)",
+        "per_100g": fat100g,
+        "per_label": double.parse((fat100g * ratio).toStringAsFixed(1)),
+        "unit": fatUnit.isNotEmpty ? fatUnit : 'g',
+      },
+      {
+        "id": "carb",
+        "name": "Carb",
+        "per_100g": carb100g,
+        "per_label": double.parse((carb100g * ratio).toStringAsFixed(1)),
+        "unit": carbUnit.isNotEmpty ? carbUnit : 'g',
+      },
+      {
+        "id": "fiber",
+        "name": "Chất xơ",
+        "per_100g": fiber100g,
+        "per_label": double.parse((fiber100g * ratio).toStringAsFixed(1)),
+        "unit": fiberUnit.isNotEmpty ? fiberUnit : 'g',
+      },
+    ];
+
+    final coreKeys = [
+      'code', 'name_vi', 'category', 
+      'Năng lượng', 'Chất đạm', 'Chất béo (Fat)', 'Chất bột đường', 'Chất xơ'
+    ];
+    
+    for (var entry in foodData.entries) {
+      final key = entry.key;
+      final value = entry.value;
+      if (coreKeys.contains(key) || key.endsWith('_unit')) {
+        continue;
+      }
+      final numValue = double.tryParse(value?.toString() ?? '') ?? 0.0;
+      if (numValue > 0) {
+        final unitKey = '${key}_unit';
+        final unitStr = foodData[unitKey]?.toString().trim() ?? '';
+        nutritionArray.add({
+          "id": key,
+          "name": key,
+          "per_100g": numValue,
+          "per_label": double.parse((numValue * ratio).toStringAsFixed(2)),
+          "unit": unitStr,
+        });
+      }
+    }
+    return nutritionArray;
+  }
+}

@@ -8,7 +8,6 @@ import 'package:tflite_flutter/tflite_flutter.dart';
 import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
 
 class AIHelper {
-
   String removeDiacritics(String str) {
     var withDia = 'àáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹđÀÁẠẢÃÂẦẤẬẨẪĂẰẮẶẲẴÈÉẸẺẼÊỀẾỆỂỄÌÍỊỈĨÒÓỌỎÕÔỒỐỘỔỖƠỜỚỢỞỠÙÚỤỦŨƯỪỨỰỬỮỲÝỴỶỸĐ';
     var withoutDia = 'aaaaaaaaaaaaaaaaaeeeeeeeeeeeiiiiiooooooooooooooooouuuuuuuuuuuyyyyydAAAAAAAAAAAAAAAAAEEEEEEEEEEEIIIIIOOOOOOOOOOOOOOOOOUUUUUUUUUUUYYYYYD';
@@ -46,7 +45,7 @@ class AIHelper {
   Future<Map<String, String?>> detectAndCrop(String imagePath) async {
     await init();
     
-        // Đọc ảnh gốc và xử lý Tensor trên Isolate (Luồng nền) để không làm đơ UI
+    // Đọc ảnh gốc và xử lý Tensor trên Isolate (Luồng nền) để không làm đơ UI
     final isolateResult = await Isolate.run(() {
       final File imageFile = File(imagePath);
       final img.Image? originalImage = img.decodeImage(imageFile.readAsBytesSync());
@@ -101,7 +100,6 @@ class AIHelper {
 
     // Lấy output tensor shape để tạo mảng chứa kết quả
     final outputShape = _cropInterpreter!.getOutputTensor(0).shape;
-    // Thường YOLOv8 tflite sẽ nhả ra [1, 6, 8400] hoặc [1, 8400, 6]
     var output = List.filled(outputShape.reduce((a, b) => a * b), 0.0).reshape(outputShape);
 
     // Chạy model
@@ -113,7 +111,6 @@ class AIHelper {
     double maxLabelProb = 0.0;
     int maxLabelIndex = -1;
 
-    // Kiểm tra xem tensor bị xoay theo chiều nào
     bool isTransposed = outputShape[1] > outputShape[2]; // e.g. [1, 8400, 6]
     int numBoxes = isTransposed ? outputShape[1] : outputShape[2];
 
@@ -121,7 +118,6 @@ class AIHelper {
       double foodProb = isTransposed ? output[0][i][4] : output[0][4][i];
       double labelProb = isTransposed ? output[0][i][5] : output[0][5][i];
       
-      // BỎ HOÀN TOÀN TIÊU CHUẨN, LẤY ĐIỂM CAO NHẤT KHÔNG CẦN BIẾT LÀ BAO NHIÊU
       if (foodProb > maxFoodProb) {
         maxFoodProb = foodProb;
         maxFoodIndex = i;
@@ -143,32 +139,27 @@ class AIHelper {
       double w = isTransposed ? output[0][index][2] : output[0][2][index];
       double h = isTransposed ? output[0][index][3] : output[0][3][index];
 
-      // TỰ ĐỘNG NHẬN DIỆN TỌA ĐỘ LÀ TƯƠNG ĐỐI (0..1) HAY TUYỆT ĐỐI (0..512)
       if (w <= 1.0 && h <= 1.0) {
-        // Nếu w, h <= 1.0 => Tọa độ đã chuẩn hóa (0..1), cần nhân ngược lên 512
         xc *= inputSize;
         yc *= inputSize;
         w *= inputSize;
         h *= inputSize;
       }
 
-                        // Tọa độ trên ảnh 512x512
       double x1 = xc - w / 2;
       double y1 = yc - h / 2;
 
-      // Quy chiếu về ảnh gốc
       int cropX = (x1 / inputSize * origW).toInt();
       int cropY = (y1 / inputSize * origH).toInt();
       int cropW = (w / inputSize * origW).toInt();
       int cropH = (h / inputSize * origH).toInt();
 
-      // Ràng buộc giới hạn
       cropX = max(0, cropX);
       cropY = max(0, cropY);
       cropW = min(origW - cropX, max(1, cropW));
       cropH = min(origH - cropY, max(1, cropH));
 
-            final directory = await getTemporaryDirectory();
+      final directory = await getTemporaryDirectory();
       final path = '${directory.path}/crop_${DateTime.now().millisecondsSinceEpoch}_$index.jpg';
       
       await Isolate.run(() {
@@ -195,7 +186,7 @@ class AIHelper {
   Future<String> classifyFood(String croppedImagePath) async {
     await init();
 
-        final isolateResult = await Isolate.run(() {
+    final isolateResult = await Isolate.run(() {
       final File imageFile = File(croppedImagePath);
       final img.Image? originalImage = img.decodeImage(imageFile.readAsBytesSync());
       if (originalImage == null) return null;
@@ -225,12 +216,9 @@ class AIHelper {
     if (isolateResult == null) throw Exception("Không thể đọc ảnh để phân loại");
     var input = isolateResult;
 
-    // Output là 1 mảng 1xN (N = labels.length, hiện tại là 47 classes)
     var output = List.filled(1 * labels.length, 0.0).reshape([1, labels.length]);
-
     _classifyInterpreter!.run(input, output);
 
-    // Tìm giá trị cao nhất (Argmax)
     double maxProb = -double.infinity;
     int maxIndex = 0;
     for (int i = 0; i < labels.length; i++) {
@@ -243,7 +231,7 @@ class AIHelper {
     return labels[maxIndex];
   }
 
-  /// 3. CHẠY MODEL ML KIT ĐỂ ĐỌC CHỮ VÀ BÓC TÁCH KHỐI LƯỢNG (Bản chuẩn Python model2.py)
+  /// 3. CHẠY MODEL ML KIT ĐỂ ĐỌC CHỮ VÀ BÓC TÁCH KHỐI LƯỢNG
   Future<String?> readLabelWeight(String labelImagePath) async {
     final inputImage = InputImage.fromFilePath(labelImagePath);
     final textRecognizer = TextRecognizer(script: TextRecognitionScript.latin);
@@ -298,7 +286,7 @@ class AIHelper {
                  weightCandidate = '$valStr${match.group(2)!.toUpperCase()}';
                }
             }
-          } catch (e) {}
+          } catch (_) {}
         }
       }
 
@@ -315,11 +303,11 @@ class AIHelper {
               String valStr = (val == val.toInt()) ? val.toInt().toString() : val.toString().replaceAll(RegExp(r'0*$'), '').replaceAll(RegExp(r'\.$'), '');
               weightCandidate = '$valStr${match.group(2)!.toUpperCase()}';
             }
-          } catch (e) {}
+          } catch (_) {}
         }
       }
 
-      // Logic 3: Chạy Regex vét máng (Tương đương _extract_by_regex)
+      // Logic 3: Chạy Regex vét máng
       weightCandidate ??= _extractByRegex(normalizedText);
 
       // Logic 4: Fallback số đơn lẻ quanh khu vực KL
@@ -331,24 +319,23 @@ class AIHelper {
               double val = double.parse(numStr);
               if ('.'.allMatches(numStr).length <= 1 && val > 0 && val <= 5000) {
                  if (val > 1000 && numStr.endsWith('9') && numStr.length <= 4) {
-                    val = (val - 9) / 10; // OCR sửa sai 5009 -> 500
+                    val = (val - 9) / 10;
                  }
                  String dv = (val < 15) ? 'KG' : 'G';
                  String valStr = (val == val.toInt()) ? val.toInt().toString() : val.toString().replaceAll(RegExp(r'0*$'), '').replaceAll(RegExp(r'\.$'), '');
                  weightCandidate = '$valStr$dv';
                  break;
               }
-           } catch (e) {}
+           } catch (_) {}
         }
       }
 
-      // Sửa lỗi chính tả 9G -> G (VD 5009G -> 500G)
       if (weightCandidate != null) {
           weightCandidate = weightCandidate.replaceAll(RegExp(r'9G$', caseSensitive: false), 'G');
       }
 
       return weightCandidate;
-    } catch (e) {
+    } catch (_) {
       return null;
     } finally {
       textRecognizer.close();
@@ -373,7 +360,7 @@ class AIHelper {
            String soStr = (so == so.toInt()) ? so.toInt().toString() : so.toString().replaceAll(RegExp(r'0*$'), '').replaceAll(RegExp(r'\.$'), '');
            return '$soStr$dv';
         }
-      } catch (e) {}
+      } catch (_) {}
     }
 
     final patternUnit = RegExp(r'(?<![a-zA-Z])(\d+(?:[.,]\d+)?)\s*(g|kg|gr|k)(?![a-zA-Z])', caseSensitive: false);
@@ -388,7 +375,7 @@ class AIHelper {
            String soStr = (so == so.toInt()) ? so.toInt().toString() : so.toString().replaceAll(RegExp(r'0*$'), '').replaceAll(RegExp(r'\.$'), '');
            return '$soStr$dv';
         }
-      } catch (e) {}
+      } catch (_) {}
     }
 
     final numbers = RegExp(r'(?<![a-zA-Z])(\d+(?:[.,]\d+)?)(?![a-zA-Z])').allMatches(vanBanSach);
@@ -407,35 +394,9 @@ class AIHelper {
            String valStr = (val == val.toInt()) ? val.toInt().toString() : val.toString().replaceAll(RegExp(r'0*$'), '').replaceAll(RegExp(r'\.$'), '');
            return '$valStr$dv';
         }
-      } catch (e) {}
+      } catch (_) {}
     }
 
     return null;
   }
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../data/datasources/local/database_helper.dart';
 import '../../data/models/user_profile_model.dart';
@@ -23,11 +24,11 @@ class ProfileState {
 class ProfileController extends Notifier<ProfileState> {
   @override
   ProfileState build() {
-    _loadProfile();
+    loadProfile();
     return ProfileState();
   }
 
-  Future<void> _loadProfile() async {
+  Future<void> loadProfile() async {
     final profile = await DatabaseHelper.instance.getUserProfile();
     if (profile != null) {
       _calculateAndSetState(profile);
@@ -42,9 +43,28 @@ class ProfileController extends Notifier<ProfileState> {
       await DatabaseHelper.instance.saveUserProfile(profile);
       _calculateAndSetState(profile);
     } catch (e) {
-      print("Error saving profile: $e");
+      debugPrint("Error saving profile: $e");
       state = state.copyWith(isLoading: false);
     }
+  }
+
+  Future<void> toggleObesityMode(bool isObesityMode) async {
+    if (state.profile == null) return;
+    final current = state.profile!;
+    final updated = UserProfile.create(
+      id: current.id,
+      dob: current.dob,
+      weight: current.weight,
+      height: current.height,
+      gender: current.gender,
+      activityFactor: current.activityFactor,
+      goal: isObesityMode ? 'Giảm cân' : current.goal,
+      medicalConditions: current.medicalConditions,
+      allergies: current.allergies,
+      isObesityMode: isObesityMode,
+      isSynced: 0,
+    );
+    await saveProfile(updated);
   }
 
   void _calculateAndSetState(UserProfile profile) {

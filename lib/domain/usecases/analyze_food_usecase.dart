@@ -1,6 +1,7 @@
-﻿import 'package:flutter/foundation.dart';
+import 'package:flutter/foundation.dart';
 import 'dart:convert';
 
+import '../../core/utils/image_compress_helper.dart';
 import '../../data/models/scan_history_model.dart';
 import '../../data/repositories/food_repository.dart';
 import '../../data/datasources/local/ai_helper.dart';
@@ -20,60 +21,15 @@ class AnalyzeFoodUseCase {
       final String? croppedLabelImage = croppedImages['labelImagePath'];
 
       // Bước 2: Phân loại món ăn từ ảnh thịt đã cắt
-      final String detectedName = await AIHelper.instance.classifyFood(croppedFoodImage);
+      String detectedName = await AIHelper.instance.classifyFood(croppedFoodImage);
 
-      // BẢN ĐỒ ÁNH XẠ: Chuyển tên từ AI sang tên chuẩn của File CSV
-      final Map<String, String> csvNameMapper = {
-        'Bạch tuộc': 'mực, tươi',
-        'Bắp cải': 'cải bắp trắng, tươi',
-        'Bầu': 'quả bầu, tươi',
-        'Bí đỏ': 'quả bí ngô, tươi',
-        'Bơ': 'quả bơ vỏ xanh, tươi',
-        'Cà chua': 'quả cà chua, tươi',
-        'Cá điêu hồng': 'cá điêu hồng',
-        'Cá hồi': 'cá hồi, tươi',
-        'Cá lóc': 'cá quả, tươi',
-        'Cá ngừ': 'cá ngừ, tươi',
-        'Cà rốt': 'củ cà rốt, tươi',
-        'Cá thu': 'cá thu, tươi',
-        'Cải xanh': 'cải xanh, tươi',
-        'Cam': 'cam, tươi',
-        'Chôm chôm': 'chôm chôm, tươi',
-        'Chuối': 'chuối tiêu, tươi',
-        'Dâu tây': 'dâu tây, tươi',
-        'Đu đủ': 'đu đủ chín, tươi',
-        'Dưa hấu': 'dưa hấu, tươi',
-        'Dưa leo': 'dưa chuột, tươi',
-        'Ếch': 'ếch (thịt đùi), tươi',
-        'Hạnh nhân': 'hạt hạnh nhân rang',
-        'Khổ qua': 'mướp đắng, tươi',
-        'Khoai lang': 'khoai lang, tươi',
-        'Khoai tây': 'khoai tây, tươi',
-        'Lê': 'lê, tươi',
-        'Mực': 'mực, tươi',
-        'Nấm đùi gà': 'nấm thường, tươi',
-        'Nấm kim châm': 'nấm kim châm',
-        'Nấm rơm': 'nấm rơm, tươi',
-        'Ngô': 'ngô, cả bắp, tươi',
-        'Nho': 'nho ngọt, tươi',
-        'Óc chó': 'hạt óc chó rang',
-        'Ổi': 'ổi, quả chín, tươi',
-        'Ớt chuông': 'ớt đỏ to, tươi',
-        'Rau muống': 'rau muống, tươi',
-        'Sầu riêng': 'sầu riêng, tươi',
-        'Súp lơ': 'súp lơ xanh, tươi',
-        'Táo': 'táo tây, tươi',
-        'Thanh long': 'quả thanh long, tươi',
-        'Thịt bò': 'thịt bò, bắp, sống',
-        'Thịt gà': 'thịt gà ta, tươi',
-        'Thịt heo': 'thịt lợn, nạc, tươi',
-        'Tôm': 'tôm biển, tươi',
-        'Trứng': 'trứng gà ta',
-        'Vải': 'vải, tươi',
-        'Xoài': 'xoài chín, tươi',
-      };
-      
-      final String searchString = csvNameMapper[detectedName] ?? detectedName;
+      // Nếu nhận diện là Trứng, mặc định là Trứng gà (công nghiệp) 1 quả (50g)
+      final bool isEgg = detectedName.toLowerCase() == 'trứng' || detectedName.toLowerCase() == 'egg';
+      if (isEgg) {
+        detectedName = 'Trứng gà (công nghiệp)';
+      }
+
+      final String searchString = FoodRepository.csvNameMapper[detectedName] ?? detectedName;
 
       // Bước 3: Đọc khối lượng từ tem (OCR)
       double? rawWeightValue;
@@ -95,6 +51,9 @@ class AnalyzeFoodUseCase {
       double? detectedWeightInGrams;
       if (rawWeightValue != null) {
         detectedWeightInGrams = _normalizeToGrams(rawWeightValue, rawWeightUnit);
+      } else if (isEgg) {
+        // Mặc định trứng là 1 quả (50g)
+        detectedWeightInGrams = 50.0;
       }
 
       // 2. TRA CỨU TỪ ĐIỂN CSV
@@ -103,106 +62,28 @@ class AnalyzeFoodUseCase {
         throw Exception("Không tìm thấy '$detectedName' trong cơ sở dữ liệu!");
       }
 
-      // Lấy các chỉ số gốc trên 100g (Lưu ý: đã đổi tên energy thành Năng lượng)
       final String mainGroup = foodData['Nhóm Dinh Dưỡng Chính']?.toString().trim() ?? 'Chưa phân loại';
-      final double energy100g = double.tryParse(foodData['Năng lượng']?.toString() ?? '0') ?? 0;
-      final double protein100g = double.tryParse(foodData['Chất đạm']?.toString() ?? '0') ?? 0;
-      final double fat100g = double.tryParse(foodData['Chất béo (Fat)']?.toString() ?? '0') ?? 0;
-      final double carb100g = double.tryParse(foodData['Chất bột đường']?.toString() ?? '0') ?? 0;
-      final double fiber100g = double.tryParse(foodData['Chất xơ']?.toString() ?? '0') ?? 0;
-
-      // Lấy linh động Đơn vị (Unit) từ CSV. Nếu cột trống thì mặc định là 'g'
-      final String proteinUnit = foodData['Chất đạm_unit']?.toString().trim() ?? 'g';
-      final String fatUnit = foodData['Chất béo (Fat)_unit']?.toString().trim() ?? 'g';
-      final String carbUnit = foodData['Chất bột đường_unit']?.toString().trim() ?? 'g';
-      final String fiberUnit = foodData['Chất xơ_unit']?.toString().trim() ?? 'g';
 
       // 3. TÍNH TOÁN & ĐÓNG GÓI JSON
-      // Nếu không có khối lượng, tỷ lệ tính toán (ratio) mặc định là 1 (tương đương 100g)
-      final ratio = detectedWeightInGrams != null ? (detectedWeightInGrams / 100) : 1.0;
-
-      // BẮT BUỘC: Năng lượng và 4 chất chính luôn được hiển thị (kể cả = 0)
-      final List<Map<String, dynamic>> nutritionArray = [
-        {
-          "id": "energy", // ID giữ nguyên để UI map đúng
-          "name": "Năng lượng",
-          "per_100g": energy100g,
-          "per_label": double.parse((energy100g * ratio).toStringAsFixed(1)),
-          "unit": "kcal",
-        },
-        {
-          "id": "protein",
-          "name": "Protein",
-          "per_100g": protein100g,
-          "per_label": double.parse((protein100g * ratio).toStringAsFixed(1)),
-          "unit": proteinUnit.isNotEmpty ? proteinUnit : 'g',
-        },
-        {
-          "id": "total_fat",
-          "name": "Chất béo (Fat)",
-          "per_100g": fat100g,
-          "per_label": double.parse((fat100g * ratio).toStringAsFixed(1)),
-          "unit": fatUnit.isNotEmpty ? fatUnit : 'g',
-        },
-        {
-          "id": "carb",
-          "name": "Carb",
-          "per_100g": carb100g,
-          "per_label": double.parse((carb100g * ratio).toStringAsFixed(1)),
-          "unit": carbUnit.isNotEmpty ? carbUnit : 'g',
-        },
-        {
-          "id": "fiber",
-          "name": "Chất xơ",
-          "per_100g": fiber100g,
-          "per_label": double.parse((fiber100g * ratio).toStringAsFixed(1)),
-          "unit": fiberUnit.isNotEmpty ? fiberUnit : 'g',
-        },
-      ];
-
-      // ĐỘNG: Duyệt qua toàn bộ các chất phụ còn lại (Vitamin, Tro, Nước...)
-      // Tạo danh sách các cột không được quét (vì đã có ở trên rồi)
-      final coreKeys = [
-        'code', 'name_vi', 'category', 
-        'Năng lượng', 'Chất đạm', 'Chất béo (Fat)', 'Chất bột đường', 'Chất xơ'
-      ];
-      
-      for (var entry in foodData.entries) {
-        final key = entry.key;
-        final value = entry.value;
-        
-        // Bỏ qua các cột core hoặc cột mang tính chất _unit
-        if (coreKeys.contains(key) || key.endsWith('_unit')) {
-          continue;
-        }
-
-        // Cố gắng parse số. Trường hợp value rỗng "" hoặc null sẽ ra 0
-        final numValue = double.tryParse(value?.toString() ?? '') ?? 0.0;
-        
-        // YÊU CẦU: CHỈ THÊM VÀO nếu lớn hơn 0
-        if (numValue > 0) {
-          // Lấy unit tương ứng (ví dụ: key là "Vitamin C" thì tìm key "Vitamin C_unit")
-          final unitKey = '${key}_unit';
-          final unitStr = foodData[unitKey]?.toString().trim() ?? '';
-          
-          nutritionArray.add({
-            "id": key, // Lấy tên cột làm id
-            "name": key,
-            "per_100g": numValue,
-            "per_label": double.parse((numValue * ratio).toStringAsFixed(2)),
-            "unit": unitStr,
-          });
-        }
-      }
+      final double targetWeight = detectedWeightInGrams ?? 100.0;
+      final List<Map<String, dynamic>> nutritionArray = repository.buildNutritionArray(foodData, targetWeight);
 
       // Đóng gói thành chuỗi TEXT
       final String jsonNutritionData = jsonEncode(nutritionArray);
+
+      // Nén 3 ảnh về chuẩn 550px và chuyển sang Base64 để sao lưu Cloud an toàn
+      final String? originalBase64 = await ImageCompressHelper.compressAndEncodeBase64(imagePath, maxDimension: 550, quality: 75);
+      final String? foodBase64 = await ImageCompressHelper.compressAndEncodeBase64(croppedFoodImage, maxDimension: 550, quality: 75);
+      final String? labelBase64 = await ImageCompressHelper.compressAndEncodeBase64(croppedLabelImage, maxDimension: 550, quality: 75);
 
       // 4. TRẢ VỀ ĐỐI TƯỢNG LỊCH SỬ HOÀN CHỈNH
       return ScanHistory(
         originalImage: imagePath,
         croppedFoodImage: croppedFoodImage,
         croppedLabelImage: croppedLabelImage,
+        originalImageBase64: originalBase64,
+        foodImageBase64: foodBase64,
+        labelImageBase64: labelBase64,
         foodName: detectedName,
         weight: detectedWeightInGrams,
         nutritionData: jsonNutritionData,
@@ -232,8 +113,3 @@ class AnalyzeFoodUseCase {
     }
   }
 }
-
-
-
-
-

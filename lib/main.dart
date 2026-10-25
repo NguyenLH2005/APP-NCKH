@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:nckh_app/presentation/screens/main_screen.dart';
-
-// import 'presentation/screens/scan_screen.dart';
+import 'presentation/screens/main_screen.dart';
+import 'presentation/screens/login_screen.dart';
 import 'presentation/state/scan_controller.dart';
+import 'presentation/state/sync_controller.dart';
 
 void main() async {
   // Đảm bảo Flutter sẵn sàng trước khi load file
@@ -25,10 +25,51 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Quét Dinh Dưỡng',
+      title: 'NutriCare',
       theme: ThemeData(primarySwatch: Colors.green, useMaterial3: true),
       debugShowCheckedModeBanner: false,
-      home: const MainScreen(),
+      home: const AuthGate(),
     );
+  }
+}
+
+class AuthGate extends ConsumerWidget {
+  const AuthGate({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final syncState = ref.watch(syncProvider);
+
+    // Chờ quá trình kiểm tra phiên đăng nhập ngầm hoàn tất
+    if (!syncState.isInitialized) {
+      return const Scaffold(
+        backgroundColor: Colors.white,
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              SizedBox(
+                width: 36,
+                height: 36,
+                child: CircularProgressIndicator(color: Colors.green, strokeWidth: 3),
+              ),
+              SizedBox(height: 16),
+              Text(
+                'Đang khởi tạo ứng dụng...',
+                style: TextStyle(color: Colors.grey, fontSize: 14),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    // Nếu đã đăng nhập -> Vào thẳng màn hình chính
+    if (syncState.isLoggedIn) {
+      return const MainScreen();
+    }
+
+    // Nếu chưa đăng nhập -> Hiển thị màn hình đăng nhập Google
+    return const LoginScreen();
   }
 }

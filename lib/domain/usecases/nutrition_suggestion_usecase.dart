@@ -1,280 +1,312 @@
 import '../../data/models/user_profile_model.dart';
+import '../../data/datasources/remote/api_service.dart';
 
 class NutritionSuggestionUseCase {
-  // Bộ thực phẩm tươi sống tiêu biểu, thân thiện và giàu dinh dưỡng theo từng nhóm
-  static const Map<String, List<String>> _curatedPairings = {
-    'Protein': [
-      'Đậu phụ hấp', 'Ức gà ta luộc', 'Trứng gà luộc', 'Cá quả (cá lóc) hấp', 
-      'Cá hồi áp chảo', 'Thịt lợn nạc luộc', 'Sữa chua không đường'
-    ],
-    'Tinh bột': [
-      'Cơm gạo lứt', 'Khoai lang luộc', 'Bắp ngô tươi luộc', 'Khoai tây hấp', 
-      'Yến mạch nguyên cám', 'Cơm trắng'
-    ],
-    'Chất béo': [
-      'Quả bơ tươi', 'Hạt óc chó rang mộc', 'Hạt hạnh nhân', 'Dầu ô liu nguyên chất'
-    ],
-    'Chất xơ': [
-      'Rau muống luộc', 'Súp lơ xanh hấp', 'Bắp cải luộc', 'Rau cải xanh', 
-      'Đậu cô ve luộc', 'Mướp đắng (khổ qua)'
-    ],
-    'Vitamin và chất khoáng': [
-      'Táo tây tươi', 'Ổi chín tươi', 'Cam tươi', 'Thanh long', 
-      'Dâu tây tươi', 'Đu đủ chín', 'Dưa hấu tươi'
-    ],
-  };
+  static const String offlineMessage = '📶 Cần kết nối Internet để nhận lời khuyên dinh dưỡng từ chuyên gia AI.';
 
-  static String? generateSuggestion({
+  static bool _matchesAllergen(String foodNameLower, String allergen) {
+    if (allergen.contains('Đậu phộng') || allergen.contains('Lạc')) {
+      return foodNameLower.contains('lạc') ||
+          foodNameLower.contains('đậu phộng') ||
+          foodNameLower.contains('bơ đậu phộng') ||
+          foodNameLower.contains('peanut');
+    }
+    if (allergen.contains('Hải sản có vỏ')) {
+      return foodNameLower.contains('tôm') ||
+          foodNameLower.contains('cua') ||
+          foodNameLower.contains('sò') ||
+          foodNameLower.contains('ốc') ||
+          foodNameLower.contains('nghêu') ||
+          foodNameLower.contains('ngao') ||
+          foodNameLower.contains('hàu') ||
+          foodNameLower.contains('ghẹ') ||
+          foodNameLower.contains('hến') ||
+          foodNameLower.contains('tôm khô') ||
+          foodNameLower.contains('mắm tôm') ||
+          foodNameLower.contains('shrimp') ||
+          foodNameLower.contains('crab') ||
+          foodNameLower.contains('shellfish');
+    }
+    if (allergen.contains('Hạt cây')) {
+      return foodNameLower.contains('hạnh nhân') ||
+          foodNameLower.contains('óc chó') ||
+          foodNameLower.contains('hạt điều') ||
+          foodNameLower.contains('hạt dẻ') ||
+          foodNameLower.contains('macca') ||
+          foodNameLower.contains('mắc ca') ||
+          foodNameLower.contains('hạt phỉ') ||
+          foodNameLower.contains('almond') ||
+          foodNameLower.contains('walnut') ||
+          foodNameLower.contains('cashew');
+    }
+    if (allergen.contains('Trứng')) {
+      return foodNameLower.contains('trứng') ||
+          foodNameLower.contains('egg') ||
+          foodNameLower.contains('lòng đỏ') ||
+          foodNameLower.contains('lòng trắng');
+    }
+    if (allergen.contains('Cá')) {
+      return foodNameLower.contains('cá ') ||
+          foodNameLower.startsWith('cá') ||
+          foodNameLower.contains('chả cá') ||
+          foodNameLower.contains('cá lóc') ||
+          foodNameLower.contains('cá hồi') ||
+          foodNameLower.contains('cá ngừ') ||
+          foodNameLower.contains('cá thu') ||
+          foodNameLower.contains('cá ba sa') ||
+          foodNameLower.contains('cá nục') ||
+          foodNameLower.contains('cá diêu hồng') ||
+          foodNameLower.contains('cá chép') ||
+          foodNameLower.contains('fish');
+    }
+    if (allergen.contains('sữa')) {
+      return foodNameLower.contains('sữa bò') ||
+          foodNameLower.contains('sữa tươi') ||
+          foodNameLower.contains('phô mai') ||
+          foodNameLower.contains('pho mát') ||
+          foodNameLower.contains('bơ sữa') ||
+          foodNameLower.contains('váng sữa') ||
+          foodNameLower.contains('sữa chua') ||
+          foodNameLower.contains('milk') ||
+          foodNameLower.contains('cheese') ||
+          foodNameLower.contains('dairy');
+    }
+    return false;
+  }
+
+  static Future<String?> generateSuggestion({
     required UserProfile profile,
     required String mainGroupStr, // VD: "Protein, Chất béo"
     required String foodName,
     required Map<String, dynamic> rawFoodData,
-  }) {
-    double calo100g = double.tryParse(rawFoodData['Năng lượng']?.toString() ?? '0') ?? 0;
+    double? weight,
+  }) async {
+    final double calo100g = double.tryParse(rawFoodData['Năng lượng']?.toString() ?? '0') ?? 0;
     if (calo100g <= 0) return null;
 
-    double sugars = double.tryParse(rawFoodData['Sugars, total']?.toString() ?? '0') ?? 0;
-    double sodium = double.tryParse(rawFoodData['Natri']?.toString() ?? '0') ?? 0;
-    double satFat = double.tryParse(rawFoodData['Axit béo bão hòa tổng số']?.toString() ?? '0') ?? 0;
-    double transFat = double.tryParse(rawFoodData['Fatty acids, total trans']?.toString() ?? '0') ?? 0;
-    double protein = double.tryParse(rawFoodData['Chất đạm']?.toString() ?? '0') ?? 0;
-    double carb = double.tryParse(rawFoodData['Chất bột đường']?.toString() ?? '0') ?? 0;
-    double fat = double.tryParse(rawFoodData['Chất béo (Fat)']?.toString() ?? '0') ?? 0;
-    double fiber = double.tryParse(rawFoodData['Chất xơ']?.toString() ?? '0') ?? 0;
-    double potassium = double.tryParse(rawFoodData['Kali']?.toString() ?? '0') ?? 0;
-    double phosphorus = double.tryParse(rawFoodData['Photpho']?.toString() ?? '0') ?? 0;
+    final double sugars = double.tryParse(rawFoodData['Sugars, total']?.toString() ?? '0') ?? 0;
+    final double sodium = double.tryParse(rawFoodData['Natri']?.toString() ?? '0') ?? 0;
+    final double satFat = double.tryParse(rawFoodData['Axit béo bão hòa tổng số']?.toString() ?? '0') ?? 0;
+    final double transFat = double.tryParse(rawFoodData['Fatty acids, total trans']?.toString() ?? '0') ?? 0;
+    final double protein = double.tryParse(rawFoodData['Chất đạm']?.toString() ?? '0') ?? 0;
+    final double carb = double.tryParse(rawFoodData['Chất bột đường']?.toString() ?? '0') ?? 0;
+    final double fat = double.tryParse(rawFoodData['Chất béo (Fat)']?.toString() ?? '0') ?? 0;
+    final double fiber = double.tryParse(rawFoodData['Chất xơ']?.toString() ?? '0') ?? 0;
+    final double potassium = double.tryParse(rawFoodData['Kali']?.toString() ?? '0') ?? 0;
+    final double phosphorus = double.tryParse(rawFoodData['Photpho']?.toString() ?? '0') ?? 0;
 
-    final flags = profile.medicalFlags; // Chuỗi 5-bit: Bit 0: Tiểu đường, 1: Huyết áp, 2: Mỡ máu, 3: Gout, 4: Thận
+    final flags = profile.medicalFlags; // Chuỗi 6-bit
     final bool hasDiabetes = flags.isNotEmpty && flags[0] == '1';
     final bool hasHypertension = flags.length > 1 && flags[1] == '1';
-    final bool hasLipidHeart = flags.length > 2 && flags[2] == '1';
+    final bool hasLipid = flags.length > 2 && flags[2] == '1';
     final bool hasGout = flags.length > 3 && flags[3] == '1';
     final bool hasKidney = flags.length > 4 && flags[4] == '1';
+    final bool hasCardio = flags.length > 5 && flags[5] == '1';
 
-    // =========================================================================
-    // 1. PHÂN ĐOẠN 2 - BƯỚC 1: LỆNH CẤM TUYỆT ĐỐI (MEDICAL VETO - VƯỢT 50% %DV)
-    // =========================================================================
+    final String foodNameLower = foodName.toLowerCase();
+
+    // 1. Kiểm tra Lệnh cấm tuyệt đối (Medical Hard Veto & Absolute Allergies)
     String? vetoReason;
 
-    if (hasDiabetes && sugars >= (profile.ceilingSugar * 0.5)) {
-      vetoReason = "Món này có hàm lượng Đường quá cao (${sugars}g/100g, chiếm >= 50% trần an toàn cả ngày), có nguy cơ làm tăng đột ngột đường huyết cấp tính.";
-    } else if (hasHypertension && (sodium >= (profile.ceilingSodium * 0.5) || sodium >= 1000.0)) {
-      vetoReason = "Món này có hàm lượng Natri quá cao (${sodium}mg/100g, chiếm >= 50% trần an toàn cả ngày), dễ dẫn đến tăng huyết áp đột ngột.";
-    } else if (hasLipidHeart && (transFat >= 0.5 || satFat >= (profile.ceilingSatFat * 0.5))) {
-      vetoReason = "Món này chứa Trans fat (${transFat}g) hoặc Axit béo bão hòa quá cao (${satFat}g/100g), gây tổn thương nghiêm trọng đến thành mạch và tim mạch.";
-    } else if (hasKidney && (potassium >= 600.0 || phosphorus >= 500.0)) {
-      vetoReason = "Hàm lượng Kali (${potassium}mg) hoặc Photpho (${phosphorus}mg) trong 100g vượt quá khả năng đào thải của thận bị suy.";
-    } else if (hasGout) {
-      String nameLower = foodName.toLowerCase();
-      if ((nameLower.contains('bò') || nameLower.contains('heo') || nameLower.contains('cừu') || 
-           nameLower.contains('tôm') || nameLower.contains('cua') || nameLower.contains('mực') || 
-           nameLower.contains('tuộc') || nameLower.contains('hải sản')) && protein >= 20.0) {
-        vetoReason = "Món này giàu Purine/Đạm động vật đậm đặc (${protein}g/100g), có nguy cơ kích hoạt cơn đau Gout cấp tính dữ dội.";
+    // A. Dị ứng thực phẩm tuyệt đối (0% Tolerance / Veto 100%)
+    if (profile.allergies.isNotEmpty) {
+      for (final allergen in profile.allergies) {
+        if (_matchesAllergen(foodNameLower, allergen)) {
+          vetoReason = "Bạn có tiền sử DỊ ỨNG TUYỆT ĐỐI với nhóm \"$allergen\". Thực phẩm \"$foodName\" có chứa thành phần này, có nguy cơ gây sốc phản vệ hoặc biến chứng dị ứng nghiêm trọng đe dọa tính mạng.";
+          break;
+        }
+      }
+    }
+
+    // B. Veto bệnh lý mạn tính nghiêm trọng đe dọa cấp cứu
+    if (vetoReason == null) {
+      if (hasKidney && (potassium >= 600.0 || phosphorus >= 500.0)) {
+        vetoReason = "Bạn đang mắc bệnh Thận mạn. Thực phẩm \"$foodName\" có hàm lượng Kali (${potassium.toStringAsFixed(0)}mg/100g) hoặc Photpho (${phosphorus.toStringAsFixed(0)}mg/100g) vượt ngưỡng an toàn nghiêm trọng, vượt quá khả năng bài tiết của thận và có thể dẫn đến tăng Kali máu làm loạn nhịp tim nguy hiểm.";
+      } else if (hasDiabetes && sugars >= (profile.ceilingSugar * 0.5)) {
+        vetoReason = "Bạn đang mắc bệnh Tiểu đường. Thực phẩm \"$foodName\" có hàm lượng Đường tự do quá cao (${sugars.toStringAsFixed(1)}g/100g, chiếm >= 50% trần an toàn cả ngày), có nguy cơ làm tăng đột ngột đường huyết cấp tính.";
+      } else if (hasHypertension && (sodium >= (profile.ceilingSodium * 0.5) || sodium >= 1000.0)) {
+        vetoReason = "Bạn đang mắc bệnh Tăng huyết áp. Thực phẩm \"$foodName\" có lượng Natri quá cao (${sodium.toStringAsFixed(0)}mg/100g, chiếm >= 50% trần muối an toàn cả ngày), dễ dẫn đến tăng huyết áp đột ngột.";
+      } else if (hasCardio && (sodium >= (profile.ceilingSodium * 0.5) || sodium >= 1000.0)) {
+        vetoReason = "Bạn đang mắc bệnh Tim mạch. Thực phẩm \"$foodName\" có lượng Natri quá cao (${sodium.toStringAsFixed(0)}mg/100g), có nguy cơ gây giữ nước và tăng gánh nặng tuần hoàn cấp tính cho tim.";
+      } else if (hasLipid && (transFat >= 0.5 || satFat >= (profile.ceilingSatFat * 0.5))) {
+        vetoReason = "Bạn đang mắc bệnh Rối loạn lipid máu (Mỡ máu). Thực phẩm \"$foodName\" chứa Trans fat (${transFat.toStringAsFixed(1)}g) hoặc Axit béo bão hòa quá cao (${satFat.toStringAsFixed(1)}g/100g), gây tổn thương thành mạch và làm tăng mạnh cholesterol xấu.";
+      } else if (hasGout) {
+        if ((foodNameLower.contains('bò') || foodNameLower.contains('heo') || foodNameLower.contains('cừu') || 
+             foodNameLower.contains('tôm') || foodNameLower.contains('cua') || foodNameLower.contains('mực') || 
+             foodNameLower.contains('tuộc') || foodNameLower.contains('hải sản')) && protein >= 20.0) {
+          vetoReason = "Bạn đang mắc bệnh Gout. Thực phẩm \"$foodName\" giàu Purine/Đạm động vật đậm đặc (${protein.toStringAsFixed(1)}g/100g), có nguy cơ kích hoạt cơn đau Gout cấp tính dữ dội.";
+        }
       }
     }
 
     if (vetoReason != null) {
-      return "🚨 CẢNH BÁO Y KHOA ĐẶC BIỆT:\n$vetoReason\n\n⛔ KHUYẾN NGHỊ: Bạn TUYỆT ĐỐI KHÔNG NÊN ĂN món này để bảo vệ sức khỏe an toàn.";
+      return "🚨 CẢNH BÁO Y KHOA ĐẶC BIỆT:\n$vetoReason\n\n⛔ KHUYẾN NGHỊ: Bạn TUYỆT ĐỐI KHÔNG ĐƯỢC DÙNG thực phẩm này để bảo vệ sức khỏe an toàn.";
     }
 
-    // =========================================================================
-    // 2. PHÂN ĐOẠN 2 - BƯỚC 2: CẢNH BÁO VÀNG (25% <= %DV < 50%)
-    // =========================================================================
-    List<String> warnings = [];
+    // 2. Tính toán các chỉ số cho JSON gửi AI Gemini
+    final double userWeight = (weight != null && weight > 0) ? weight : 100.0;
 
-    if (hasDiabetes && sugars >= (profile.ceilingSugar * 0.25)) {
-      warnings.add("⚠️ TIỂU ĐƯỜNG: Món này có lượng đường đáng kể (${sugars}g/100g, chiếm >= 25% ngân sách ngày). Cần kiểm soát chặt chẽ khẩu phần.");
+    // A. % Calo
+    double caloPercentRaw = (profile.targetCalories > 0) ? (calo100g / profile.targetCalories) * 100 : 0.0;
+    if (caloPercentRaw.isNaN || caloPercentRaw.isInfinite) caloPercentRaw = 0.0;
+    final double caloriesPercent = double.parse(caloPercentRaw.toStringAsFixed(1));
+
+    // B. Chuẩn hóa nhóm dinh dưỡng chính và tính % nhóm chất
+    List<String> rawGroups = mainGroupStr
+        .split(',')
+        .map((e) => e.trim())
+        .where((e) => e.isNotEmpty)
+        .toList();
+    if (rawGroups.isEmpty) rawGroups = ['Chất đạm'];
+
+    final List<Map<String, dynamic>> mainGroupsPercent = [];
+    for (String g in rawGroups) {
+      final gLower = g.toLowerCase();
+      if (gLower.contains('protein') || gLower.contains('đạm')) {
+        final double p = (profile.budgetProtein > 0) ? (protein / profile.budgetProtein) * 100 : 0.0;
+        mainGroupsPercent.add({'group': 'Chất đạm', 'percent': double.parse(p.toStringAsFixed(1))});
+      } else if (gLower.contains('tinh bột') || gLower.contains('carb')) {
+        final double p = (profile.budgetCarb > 0) ? (carb / profile.budgetCarb) * 100 : 0.0;
+        mainGroupsPercent.add({'group': 'Tinh bột', 'percent': double.parse(p.toStringAsFixed(1))});
+      } else if (gLower.contains('chất béo') || gLower.contains('fat')) {
+        final double p = (profile.budgetFat > 0) ? (fat / profile.budgetFat) * 100 : 0.0;
+        mainGroupsPercent.add({'group': 'Chất béo', 'percent': double.parse(p.toStringAsFixed(1))});
+      } else if (gLower.contains('chất xơ') || gLower.contains('fiber')) {
+        final double p = (profile.budgetFiber > 0) ? (fiber / profile.budgetFiber) * 100 : 0.0;
+        mainGroupsPercent.add({'group': 'Chất xơ', 'percent': double.parse(p.toStringAsFixed(1))});
+      }
+      // Lưu ý: Nếu là "Vitamin và khoáng chất" thì không thêm vào mainGroupsPercent theo quy ước
     }
-    if (hasHypertension && sodium >= (profile.ceilingSodium * 0.25)) {
-      warnings.add("⚠️ HUYẾT ÁP CAO: Hàm lượng Natri khá cao (${sodium}mg/100g). Cần lưu ý khi nêm nếm gia vị các món khác trong bữa ăn.");
+
+    // C. Tính diseaseImpact (CHỈ GỬI CÁC BỆNH CÓ CHỈ SỐ LIÊN QUAN > 0)
+    final List<Map<String, dynamic>> diseaseImpact = [];
+    if (hasDiabetes && sugars > 0 && profile.ceilingSugar > 0) {
+      final double pct = (sugars / profile.ceilingSugar) * 100;
+      diseaseImpact.add({
+        'disease': 'Tiểu đường',
+        'nutrient': 'Đường tự do',
+        'percentCeiling': double.parse(pct.toStringAsFixed(1)),
+      });
     }
-    if (hasLipidHeart && satFat >= (profile.ceilingSatFat * 0.25)) {
-      warnings.add("⚠️ MỠ MÁU / TIM MẠCH: Lượng Axit béo bão hòa chiếm >= 25% ngân sách ngày (${satFat}g/100g).");
+    if (hasHypertension && sodium > 0 && profile.ceilingSodium > 0) {
+      final double pct = (sodium / profile.ceilingSodium) * 100;
+      diseaseImpact.add({
+        'disease': 'Huyết áp cao',
+        'nutrient': 'Natri',
+        'percentCeiling': double.parse(pct.toStringAsFixed(1)),
+      });
     }
-    if (hasKidney && (potassium >= 300.0 || phosphorus >= 200.0)) {
-      warnings.add("⚠️ BỆNH THẬN: Hàm lượng Kali (${potassium}mg) hoặc Photpho (${phosphorus}mg) ở mức cần lưu ý đối với người suy thận.");
+    if (hasCardio && sodium > 0 && profile.ceilingSodium > 0 && !hasHypertension) {
+      final double pct = (sodium / profile.ceilingSodium) * 100;
+      diseaseImpact.add({
+        'disease': 'Tim mạch',
+        'nutrient': 'Natri',
+        'percentCeiling': double.parse(pct.toStringAsFixed(1)),
+      });
     }
-    if (hasGout) {
-      String nameLower = foodName.toLowerCase();
-      if (nameLower.contains('bò') || nameLower.contains('heo') || nameLower.contains('cừu') || 
-          nameLower.contains('tôm') || nameLower.contains('cua') || nameLower.contains('mực') || 
-          nameLower.contains('tuộc') || nameLower.contains('hải sản')) {
-        warnings.add("⚠️ GOUT: Thuộc nhóm Thịt đỏ / Hải sản có chứa Purine. Nên ăn lượng vừa phải để phòng ngừa tái phát viêm khớp.");
+    if (hasLipid && satFat > 0 && profile.ceilingSatFat > 0) {
+      final double pct = (satFat / profile.ceilingSatFat) * 100;
+      diseaseImpact.add({
+        'disease': 'Mỡ máu',
+        'nutrient': 'Chất béo bão hòa',
+        'percentCeiling': double.parse(pct.toStringAsFixed(1)),
+      });
+    }
+    if (hasKidney) {
+      if (potassium > 0) {
+        final double pct = (potassium / 2000.0) * 100;
+        diseaseImpact.add({
+          'disease': 'Bệnh Thận',
+          'nutrient': 'Kali',
+          'percentCeiling': double.parse(pct.toStringAsFixed(1)),
+        });
+      }
+      if (phosphorus > 0) {
+        final double pct = (phosphorus / 800.0) * 100;
+        diseaseImpact.add({
+          'disease': 'Bệnh Thận',
+          'nutrient': 'Photpho',
+          'percentCeiling': double.parse(pct.toStringAsFixed(1)),
+        });
+      }
+      if (protein > 0 && profile.ceilingProteinKidney > 0) {
+        final double pct = (protein / profile.ceilingProteinKidney) * 100;
+        diseaseImpact.add({
+          'disease': 'Bệnh Thận',
+          'nutrient': 'Chất đạm',
+          'percentCeiling': double.parse(pct.toStringAsFixed(1)),
+        });
       }
     }
-
-    // =========================================================================
-    // 3. PHÂN ĐOẠN 3: TÍNH TOÁN ĐỊNH LƯỢNG KHỐI LƯỢNG KHUYÊN DÙNG (MEAL-BASED)
-    // =========================================================================
-    List<String> groups = mainGroupStr.split(',').map((e) => e.trim()).toList();
-    if (groups.isEmpty || groups[0].isEmpty) groups = ['Chưa phân loại'];
-
-    int roundToTens(double val) {
-      if (val <= 0) return 10;
-      if (val < 10) return val.round();
-      return (val / 10).round() * 10;
-    }
-
-    String portionAdvice = "";
-
-    bool isPureFiber = groups.contains('Chất xơ') && !groups.contains('Protein') && !groups.contains('Tinh bột') && !groups.contains('Chất béo');
-    bool isPureVitamin = groups.contains('Vitamin và chất khoáng') && !groups.contains('Protein') && !groups.contains('Tinh bột') && !groups.contains('Chất béo');
-
-    if (isPureFiber) {
-      // Nhóm Chất xơ: Đưa ra lời khuyên theo TỔNG LƯỢNG CẢ NGÀY (Quỹ xơ 25g - 30g)
-      double safeFiberPer100 = fiber > 0 ? fiber : 3.0;
-      int fiberMin = roundToTens((25.0 / safeFiberPer100) * 100);
-      int fiberMax = roundToTens((30.0 / safeFiberPer100) * 100);
-      if (fiberMin >= fiberMax) fiberMin = fiberMax > 10 ? fiberMax - 10 : fiberMax;
-
-      portionAdvice = "• Khẩu phần khuyến nghị cả ngày (đáp ứng 25g - 30g chất xơ tiêu chuẩn): Khoảng ${fiberMin}g - ${fiberMax}g (chia đều cho các bữa ăn)";
-    } else if (isPureVitamin) {
-      // Nhóm Vitamin & Khoáng chất: Đưa ra lời khuyên theo BỮA PHỤ (Snack: 10% - 15% calo ngày)
-      double snackCalMin = profile.targetCalories * 0.10;
-      double snackCalMax = profile.targetCalories * 0.15;
-      int snackMin = roundToTens((snackCalMin / calo100g) * 100);
-      int snackMax = roundToTens((snackCalMax / calo100g) * 100);
-
-      // Áp dụng trần tĩnh an toàn cho trái cây tươi (không quá 250g/bữa phụ)
-      if (snackMax > 250) snackMax = 250;
-      if (snackMin >= snackMax) snackMin = snackMax > 20 ? snackMax - 20 : snackMax;
-
-      portionAdvice = "• Khẩu phần Bữa ăn phụ (Snack lành mạnh - 10% đến 15% năng lượng ngày): Khoảng ${snackMin}g - ${snackMax}g";
-    } else {
-      // Nhóm Đạm, Tinh bột, Béo: Đưa ra 2 mốc BỮA CHÍNH (35% - 40%) và BỮA SÁNG (20% - 25%)
-      double mainMinG = 99999;
-      double mainMaxG = 99999;
-      double bfMinG = 99999;
-      double bfMaxG = 99999;
-
-      for (String g in groups) {
-        double curMainMin = 99999;
-        double curMainMax = 99999;
-        double curBfMin = 99999;
-        double curBfMax = 99999;
-
-        if (g == 'Protein' && protein > 0) {
-          curMainMin = ((profile.budgetProtein * 0.35) / protein) * 100;
-          curMainMax = ((profile.budgetProtein * 0.40) / protein) * 100;
-          curBfMin = ((profile.budgetProtein * 0.20) / protein) * 100;
-          curBfMax = ((profile.budgetProtein * 0.25) / protein) * 100;
-        } else if (g == 'Tinh bột' && carb > 0) {
-          curMainMin = ((profile.budgetCarb * 0.35) / carb) * 100;
-          curMainMax = ((profile.budgetCarb * 0.40) / carb) * 100;
-          curBfMin = ((profile.budgetCarb * 0.20) / carb) * 100;
-          curBfMax = ((profile.budgetCarb * 0.25) / carb) * 100;
-        } else if (g == 'Chất béo' && fat > 0) {
-          curMainMin = ((profile.budgetFat * 0.35) / fat) * 100;
-          curMainMax = ((profile.budgetFat * 0.40) / fat) * 100;
-          curBfMin = ((profile.budgetFat * 0.20) / fat) * 100;
-          curBfMax = ((profile.budgetFat * 0.25) / fat) * 100;
-        } else {
-          // Fallback theo calo
-          curMainMin = ((profile.targetCalories * 0.35) / calo100g) * 100;
-          curMainMax = ((profile.targetCalories * 0.40) / calo100g) * 100;
-          curBfMin = ((profile.targetCalories * 0.20) / calo100g) * 100;
-          curBfMax = ((profile.targetCalories * 0.25) / calo100g) * 100;
-        }
-
-        // Lấy giá trị MIN đối với món nhóm kép
-        if (curMainMin < mainMinG) mainMinG = curMainMin;
-        if (curMainMax < mainMaxG) mainMaxG = curMainMax;
-        if (curBfMin < bfMinG) bfMinG = curBfMin;
-        if (curBfMax < bfMaxG) bfMaxG = curBfMax;
+    if (hasGout && protein > 0) {
+      if (foodNameLower.contains('bò') || foodNameLower.contains('heo') || foodNameLower.contains('cừu') || 
+          foodNameLower.contains('tôm') || foodNameLower.contains('cua') || foodNameLower.contains('mực') || 
+          foodNameLower.contains('tuộc') || foodNameLower.contains('hải sản')) {
+        final double pct = (profile.budgetProtein > 0) ? (protein / profile.budgetProtein) * 100 : 0.0;
+        diseaseImpact.add({
+          'disease': 'Gout',
+          'nutrient': 'Purine / Đạm động vật',
+          'percentCeiling': double.parse(pct.toStringAsFixed(1)),
+        });
       }
-
-      int mainMin = roundToTens(mainMinG);
-      int mainMax = roundToTens(mainMaxG);
-      int bfMin = roundToTens(bfMinG);
-      int bfMax = roundToTens(bfMaxG);
-
-      if (mainMin >= mainMax) mainMin = mainMax > 10 ? mainMax - 10 : mainMax;
-      if (bfMin >= bfMax) bfMin = bfMax > 10 ? bfMax - 10 : bfMax;
-
-      portionAdvice = "• Khẩu phần Bữa chính (35% - 40% nhu cầu ngày): Khoảng ${mainMin}g - ${mainMax}g\n• Khẩu phần Bữa sáng (20% - 25% nhu cầu ngày): Khoảng ${bfMin}g - ${bfMax}g";
+    }
+    if (profile.isObesityMode && sugars > 0 && profile.ceilingSugar > 0 && !hasDiabetes) {
+      final double pct = (sugars / profile.ceilingSugar) * 100;
+      diseaseImpact.add({
+        'disease': 'Kiểm soát béo phì',
+        'nutrient': 'Đường tự do',
+        'percentCeiling': double.parse(pct.toStringAsFixed(1)),
+      });
     }
 
-    // =========================================================================
-    // 4. PHÂN ĐOẠN 4: THUẬT TOÁN GỢI Ý MÓN ĂN KÈM NÉ BỆNH (DYNAMIC SAFE PAIRINGS)
-    // =========================================================================
-    const fundamentalGroups = ['Protein', 'Tinh bột', 'Chất béo', 'Chất xơ', 'Vitamin và chất khoáng'];
-    
-    // Tìm các nhóm còn thiếu
-    List<String> missingGroups = [];
+    // D. Tìm các nhóm nguyên liệu còn thiếu từ 5 nhóm nguyên liệu cơ bản
+    const fundamentalGroups = ['Chất đạm', 'Tinh bột', 'Chất béo', 'Chất xơ', 'Vitamin và khoáng chất'];
+    final List<String> missingGroups = [];
     for (String fg in fundamentalGroups) {
-      bool hasGroup = groups.any((g) => g.toLowerCase().contains(fg.toLowerCase()));
+      final fgLower = fg.toLowerCase();
+      final bool hasGroup = rawGroups.any((g) {
+        final gLower = g.toLowerCase();
+        if (gLower.contains(fgLower)) return true;
+        if (fg == 'Chất đạm' && gLower.contains('protein')) return true;
+        if (fg == 'Tinh bột' && gLower.contains('carb')) return true;
+        if (fg == 'Chất béo' && gLower.contains('fat')) return true;
+        if (fg == 'Chất xơ' && gLower.contains('fiber')) return true;
+        if (fg == 'Vitamin và khoáng chất' && (gLower.contains('vitamin') || gLower.contains('khoáng'))) return true;
+        return false;
+      });
       if (!hasGroup) {
         missingGroups.add(fg);
       }
     }
 
-    // Sàng lọc món an toàn đại diện cho từng nhóm còn thiếu
-    List<String> suggestedPairings = [];
-    for (String mg in missingGroups) {
-      final candidates = _curatedPairings[mg] ?? [];
-      String? safeFood;
+    // E. Đóng gói JSON Payload chuẩn
+    final Map<String, dynamic> payload = {
+      'user': {
+        'medicalConditions': profile.medicalConditions,
+        'allergies': profile.allergies,
+      },
+      'food': {
+        'name': foodName,
+        'holdingWeight_g': userWeight,
+        'mainGroups': rawGroups,
+        'missingGroups': missingGroups,
+        'metrics100g': {
+          'caloriesPercent': caloriesPercent,
+          'mainGroupsPercent': mainGroupsPercent,
+          'diseaseImpact': diseaseImpact,
+        },
+      },
+    };
 
-      for (String c in candidates) {
-        String cLower = c.toLowerCase();
-        
-        // Không trùng món đang quét
-        if (cLower.contains(foodName.toLowerCase())) continue;
+    // 3. Gửi lên Máy chủ Backend gọi Google Gemini AI
+    final aiSuggestion = await ApiService.instance.getNutritionSuggestion(
+      payload: payload,
+    );
 
-        // Bệnh Gout: không chọn thịt đỏ, heo, bò, hải sản, tôm, mực, cá hồi
-        if (hasGout) {
-          if (cLower.contains('bò') || cLower.contains('heo') || cLower.contains('cừu') || 
-              cLower.contains('tôm') || cLower.contains('cua') || cLower.contains('mực') || 
-              cLower.contains('tuộc') || cLower.contains('hải sản') || cLower.contains('cá hồi')) {
-            continue;
-          }
-        }
-
-        // Tiểu đường: không chọn dưa hấu, cơm trắng, đu đủ ngọt
-        if (hasDiabetes) {
-          if (cLower.contains('dưa hấu') || cLower.contains('cơm trắng') || cLower.contains('đu đủ')) {
-            continue;
-          }
-        }
-
-        // Mỡ máu / Tim mạch: không chọn thịt đỏ mỡ, trứng
-        if (hasLipidHeart) {
-          if (cLower.contains('thịt bò') || cLower.contains('thịt lợn') || cLower.contains('trứng gà')) {
-            continue;
-          }
-        }
-
-        // Bệnh Thận: không chọn hoa quả giàu kali (chuối, bơ, cam)
-        if (hasKidney) {
-          if (cLower.contains('chuối') || cLower.contains('bơ') || cLower.contains('cam')) {
-            continue;
-          }
-        }
-
-        safeFood = c;
-        break; // Lấy món đầu tiên an toàn nhất
-      }
-
-      if (safeFood != null) {
-        suggestedPairings.add("$safeFood ($mg)");
-      }
+    if (aiSuggestion == null) {
+      return offlineMessage;
     }
 
-    String pairingText = suggestedPairings.isNotEmpty 
-        ? suggestedPairings.join(', ')
-        : 'Rau xanh luộc, Cơm gạo lứt';
-
-    // =========================================================================
-    // 5. LẮP RÁP CÂU CHỮ HOÀN CHỈNH
-    // =========================================================================
-    String groupText = groups.join(' và ');
-    String intro = "Đây là loại thực phẩm cung cấp chủ yếu $groupText.";
-    String mainText = "$intro\n\n$portionAdvice\n\n🥗 Món ăn kèm đề xuất để bữa ăn cân đối dưỡng chất:\nBạn nên kết hợp thêm: $pairingText.";
-
-    // Đưa cảnh báo vàng lên đầu nếu có
-    if (warnings.isNotEmpty) {
-      return "${warnings.join('\n\n')}\n\n---\n\n$mainText";
-    }
-
-    return mainText;
+    return aiSuggestion;
   }
 }

@@ -1,6 +1,5 @@
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
-
 import '../../models/scan_history_model.dart';
 import '../../models/user_profile_model.dart';
 
@@ -12,7 +11,7 @@ class DatabaseHelper {
 
   Future<Database> get database async {
     if (_database != null) return _database!;
-    _database = await _initDB('food_scanner.db');
+    _database = await _initDB('food_database.db');
     return _database!;
   }
 
@@ -22,12 +21,30 @@ class DatabaseHelper {
 
     return await openDatabase(
       path,
-      version: 6,
+      version: 9,
       onCreate: _createDB,
       onUpgrade: (db, oldVersion, newVersion) async {
-        await db.execute('DROP TABLE IF EXISTS scan_history');
-        await db.execute('DROP TABLE IF EXISTS user_profile');
-        await _createDB(db, newVersion);
+        if (oldVersion < 8) {
+          try {
+            await db.execute("ALTER TABLE user_profile ADD COLUMN allergies TEXT DEFAULT '[]'");
+            await db.execute("ALTER TABLE user_profile ADD COLUMN is_obesity_mode INTEGER DEFAULT 0");
+          } catch (_) {
+            await db.execute('DROP TABLE IF EXISTS scan_history');
+            await db.execute('DROP TABLE IF EXISTS user_profile');
+            await _createDB(db, newVersion);
+          }
+        }
+        if (oldVersion < 9) {
+          try {
+            await db.execute("ALTER TABLE scan_history ADD COLUMN original_image_base64 TEXT");
+          } catch (_) {}
+          try {
+            await db.execute("ALTER TABLE scan_history ADD COLUMN food_image_base64 TEXT");
+          } catch (_) {}
+          try {
+            await db.execute("ALTER TABLE scan_history ADD COLUMN label_image_base64 TEXT");
+          } catch (_) {}
+        }
       },
     );
   }
@@ -39,16 +56,20 @@ class DatabaseHelper {
       original_image TEXT NOT NULL,
       cropped_food_image TEXT NOT NULL,
       cropped_label_image TEXT,
+      original_image_base64 TEXT,
+      food_image_base64 TEXT,
+      label_image_base64 TEXT,
       food_name TEXT NOT NULL,
       weight REAL,
       nutrition_data TEXT NOT NULL,
       main_group TEXT NOT NULL,
-      created_at TEXT NOT NULL
+      created_at TEXT NOT NULL,
+      is_synced INTEGER NOT NULL DEFAULT 0,
+      updated_at TEXT
     )
     ''');
 
     await db.execute('''
-
     CREATE TABLE user_profile (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       dob TEXT NOT NULL,
@@ -59,6 +80,8 @@ class DatabaseHelper {
       goal TEXT NOT NULL,
       medical_conditions TEXT NOT NULL,
       medical_flags TEXT NOT NULL,
+      allergies TEXT NOT NULL DEFAULT '[]',
+      is_obesity_mode INTEGER NOT NULL DEFAULT 0,
       bmr REAL NOT NULL,
       tdee REAL NOT NULL,
       target_calories REAL NOT NULL,
@@ -69,7 +92,9 @@ class DatabaseHelper {
       ceiling_sugar REAL NOT NULL,
       ceiling_sodium REAL NOT NULL,
       ceiling_sat_fat REAL NOT NULL,
-      ceiling_protein_kidney REAL NOT NULL
+      ceiling_protein_kidney REAL NOT NULL,
+      is_synced INTEGER NOT NULL DEFAULT 0,
+      updated_at TEXT
     )
     ''');
   }
@@ -107,6 +132,32 @@ class DatabaseHelper {
     );
   }
 
+  // --- SYNC HELPERS ---
+  Future<List<ScanHistory>> getUnsyncedScans() async {
+    final db = await instance.database;
+    final result = await db.query(
+      'scan_history',
+      where: 'is_synced = ?',
+      whereArgs: [0],
+    );
+    return result.map((map) => ScanHistory.fromMap(map)).toList();
+  }
+
+  Future<void> markScansAsSynced(List<int> ids) async {
+    final db = await instance.database;
+    if (ids.isEmpty) return;
+    final placeholders = List.filled(ids.length, '?').join(',');
+    await db.rawUpdate(
+      'UPDATE scan_history SET is_synced = 1 WHERE id IN ($placeholders)',
+      ids,
+    );
+  }
+
+  Future<void> markProfileAsSynced() async {
+    final db = await instance.database;
+    await db.rawUpdate('UPDATE user_profile SET is_synced = 1');
+  }
+
   // --- USER PROFILE ---
   Future<UserProfile?> getUserProfile() async {
     final db = await instance.database;
@@ -119,16 +170,37 @@ class DatabaseHelper {
 
   Future<int> saveUserProfile(UserProfile profile) async {
     final db = await instance.database;
-    final existing = await getUserProfile();
-    if (existing != null) {
-      return await db.update(
-        'user_profile',
-        profile.toMap(),
-        where: 'id = ?',
-        whereArgs: [existing.id],
-      );
-    } else {
-      return await db.insert('user_profile', profile.toMap());
-    }
+    await db.delete('user_profile');
+    return await db.insert('user_profile', profile.toMap());
+  }
+
+  Future<bool> hasUnsyncedData() async {
+    final db = await instance.database;
+    final unsyncedScans = await db.query(
+      'scan_history',
+      where: 'is_synced = ?',
+      whereArgs: [0],
+      limit: 1,
+    );
+    if (unsyncedScans.isNotEmpty) return true;
+
+    final unsyncedProfile = await db.query(
+      'user_profile',
+      where: 'is_synced = ?',
+      whereArgs: [0],
+      limit: 1,
+    );
+    return unsyncedProfile.isNotEmpty;
+  }
+
+  Future<void> clearAllLocalData() async {
+    final db = await instance.database;
+    await db.delete('scan_history');
+    await db.delete('user_profile');
+  }
+
+  Future<void> close() async {
+    final db = await instance.database;
+    db.close();
   }
 }

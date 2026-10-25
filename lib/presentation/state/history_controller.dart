@@ -1,4 +1,4 @@
-﻿import 'dart:io';
+import 'dart:io';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/datasources/local/database_helper.dart';
@@ -35,8 +35,8 @@ class HistoryController extends Notifier<void> {
       if (file.existsSync()) {
         file.deleteSync();
       }
-    } catch (e) {
-
+    } catch (_) {
+      // Bỏ qua lỗi xóa file nếu file vật lý không tồn tại
     }
   }
 }

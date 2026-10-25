@@ -1,4 +1,4 @@
-﻿import 'dart:io';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
@@ -51,7 +51,10 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (context) => FoundObjectScreen(resultData: next.result!),
+            builder: (context) => FoundObjectScreen(
+              resultData: next.result!,
+              isFromScan: true,
+            ),
           ),
         );
       } else if (next.status == ScanStatus.error) {

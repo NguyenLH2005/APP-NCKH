@@ -9,9 +9,18 @@ class UserProfile {
   final double activityFactor;
   final String goal;
   final List<String> medicalConditions;
+  final List<String> allergies; // Danh sách 6 dị ứng thực phẩm tuyệt đối
+  final bool isObesityMode; // Bật/tắt chế độ can thiệp béo phì
 
   // Các trường tính toán sẵn lưu cố định trong CSDL
-  final String medicalFlags; // 5-bit string (Bit 0: Tiểu đường, 1: Huyết áp, 2: Mỡ máu, 3: Gout, 4: Thận)
+  // 6-bit string:
+  // Bit 0: Tiểu đường
+  // Bit 1: Huyết áp cao
+  // Bit 2: Mỡ máu
+  // Bit 3: Gout
+  // Bit 4: Bệnh Thận
+  // Bit 5: Tim mạch
+  final String medicalFlags;
   final double bmr;
   final double tdee;
   final double targetCalories;
@@ -23,6 +32,17 @@ class UserProfile {
   final double ceilingSodium;
   final double ceilingSatFat;
   final double ceilingProteinKidney;
+  final int isSynced; // 0: chưa sync, 1: đã sync
+  final String? updatedAt;
+
+  static const List<String> standardAllergens = [
+    'Đậu phộng (Lạc)',
+    'Hải sản có vỏ (Tôm, Cua, Sò...)',
+    'Hạt cây (Hạnh nhân, Óc chó, Điều...)',
+    'Trứng',
+    'Cá',
+    'Đạm sữa bò',
+  ];
 
   UserProfile({
     this.id,
@@ -33,6 +53,8 @@ class UserProfile {
     required this.activityFactor,
     required this.goal,
     required this.medicalConditions,
+    this.allergies = const [],
+    this.isObesityMode = false,
     required this.medicalFlags,
     required this.bmr,
     required this.tdee,
@@ -45,26 +67,28 @@ class UserProfile {
     required this.ceilingSodium,
     required this.ceilingSatFat,
     required this.ceilingProteinKidney,
+    this.isSynced = 0,
+    this.updatedAt,
   });
 
   static String encodeMedicalFlags(List<String> conditions) {
     final b0 = conditions.contains('Tiểu đường') ? '1' : '0';
     final b1 = conditions.contains('Huyết áp cao') ? '1' : '0';
-    final b2 = conditions.contains('Mỡ máu / Tim mạch') ? '1' : '0';
+    final b2 = (conditions.contains('Mỡ máu') || conditions.contains('Mỡ máu / Tim mạch')) ? '1' : '0';
     final b3 = conditions.contains('Gout') ? '1' : '0';
     final b4 = conditions.contains('Bệnh Thận') ? '1' : '0';
-    return '$b0$b1$b2$b3$b4';
+    final b5 = (conditions.contains('Tim mạch') || conditions.contains('Bệnh tim mạch')) ? '1' : '0';
+    return '$b0$b1$b2$b3$b4$b5';
   }
 
   static List<String> decodeMedicalFlags(String flags) {
     final list = <String>[];
-    if (flags.length >= 5) {
-      if (flags[0] == '1') list.add('Tiểu đường');
-      if (flags[1] == '1') list.add('Huyết áp cao');
-      if (flags[2] == '1') list.add('Mỡ máu / Tim mạch');
-      if (flags[3] == '1') list.add('Gout');
-      if (flags[4] == '1') list.add('Bệnh Thận');
-    }
+    if (flags.isNotEmpty && flags[0] == '1') list.add('Tiểu đường');
+    if (flags.length > 1 && flags[1] == '1') list.add('Huyết áp cao');
+    if (flags.length > 2 && flags[2] == '1') list.add('Mỡ máu');
+    if (flags.length > 3 && flags[3] == '1') list.add('Gout');
+    if (flags.length > 4 && flags[4] == '1') list.add('Bệnh Thận');
+    if (flags.length > 5 && flags[5] == '1') list.add('Tim mạch');
     return list;
   }
 
@@ -77,6 +101,10 @@ class UserProfile {
     required double activityFactor,
     required String goal,
     required List<String> medicalConditions,
+    List<String> allergies = const [],
+    bool isObesityMode = false,
+    int isSynced = 0,
+    String? updatedAt,
   }) {
     int age = 25;
     final dobParts = dob.split('-');
@@ -89,7 +117,14 @@ class UserProfile {
       }
     }
 
-    // 1. Mifflin-St Jeor
+    // BMI theo chuẩn Châu Á của WHO
+    final heightInM = height / 100.0;
+    final bmi = (heightInM > 0) ? (weight / (heightInM * heightInM)) : 0.0;
+
+    // Chế độ kiểm soát béo phì chỉ kích hoạt được khi BMI >= 23 (tiền béo phì hoặc béo phì)
+    bool effectiveObesityMode = isObesityMode && (bmi >= 23.0);
+
+    // 1. BMR theo Mifflin-St Jeor
     double bmr;
     if (gender == 'Nam') {
       bmr = (10 * weight) + (6.25 * height) - (5 * age) + 5;
@@ -100,23 +135,34 @@ class UserProfile {
     // 2. TDEE
     double tdee = bmr * activityFactor;
 
-    // 3. Target Calories
+    // 3. Target Calories & Goal
+    // Nếu bật Chế độ kiểm soát béo phì: Mục tiêu khóa chặt là "Giảm cân", thâm hụt 500 kcal
+    String effectiveGoal = effectiveObesityMode ? 'Giảm cân' : goal;
     double targetCalories = tdee;
-    if (goal == 'Giảm cân') {
+    if (effectiveObesityMode) {
       targetCalories = tdee - 500;
-    } else if (goal == 'Tăng cân') {
+    } else if (effectiveGoal == 'Giảm cân') {
+      targetCalories = tdee - 500;
+    } else if (effectiveGoal == 'Tăng cân') {
       targetCalories = tdee + 500;
     }
+
+    if (targetCalories < 1000) targetCalories = 1000;
 
     // 4. Macro ratios theo mục tiêu (NIN / CDC)
     double ratioP = 0.20;
     double ratioC = 0.50;
     double ratioF = 0.30;
-    if (goal == 'Giảm cân') {
+    if (effectiveObesityMode) {
+      // Phân bổ macro tối ưu cho người béo phì giảm mỡ (30% P, 40% C, 30% F)
       ratioP = 0.30;
       ratioC = 0.40;
       ratioF = 0.30;
-    } else if (goal == 'Tăng cân') {
+    } else if (effectiveGoal == 'Giảm cân') {
+      ratioP = 0.30;
+      ratioC = 0.40;
+      ratioF = 0.30;
+    } else if (effectiveGoal == 'Tăng cân') {
       ratioP = 0.20;
       ratioC = 0.55;
       ratioF = 0.25;
@@ -130,23 +176,23 @@ class UserProfile {
     final flags = encodeMedicalFlags(medicalConditions);
 
     // 5. Ceilings y khoa cá nhân hóa
-    // Đường: <= 10% TDEE người thường; <= 5% TDEE tiểu đường (WHO/ADA)
-    double ceilingSugar = (flags[0] == '1')
+    // Đường: <= 10% TDEE người thường; <= 5% TDEE tiểu đường hoặc béo phì (WHO/ADA)
+    double ceilingSugar = (flags[0] == '1' || effectiveObesityMode)
         ? (targetCalories * 0.05) / 4
         : (targetCalories * 0.10) / 4;
 
-    // Natri: 2000mg người thường; 1500mg huyết áp cao (WHO/AHA)
-    double ceilingSodium = (flags[1] == '1') ? 1500.0 : 2000.0;
+    // Natri: 2000mg người thường; 1500mg nếu Huyết áp cao (Bit 1) HOẶC Tim mạch (Bit 5) (WHO/AHA)
+    double ceilingSodium = (flags[1] == '1' || (flags.length > 5 && flags[5] == '1')) ? 1500.0 : 2000.0;
 
-    // Béo bão hòa: < 10% TDEE người thường; < 7% TDEE mỡ máu / tim mạch (AHA)
+    // Béo bão hòa: < 10% TDEE người thường; < 7% TDEE mỡ máu (Bit 2) (AHA 2024)
     double ceilingSatFat = (flags[2] == '1')
         ? (targetCalories * 0.07) / 9
         : (targetCalories * 0.10) / 9;
 
-    // Bệnh thận: trần đạm = weight * 0.6g (KDIGO 2024)
+    // Bệnh thận (Bit 4): trần đạm = weight * 0.6g (KDIGO 2024)
     double ceilingProteinKidney = (flags[4] == '1') ? (weight * 0.6) : -1.0;
 
-    // Nếu bệnh thận, ghi đè luôn ngân sách đạm ngày
+    // Nếu bệnh thận, ghi đè ngân sách đạm ngày
     if (flags[4] == '1') {
       budgetProtein = ceilingProteinKidney;
     }
@@ -158,8 +204,10 @@ class UserProfile {
       height: height,
       gender: gender,
       activityFactor: activityFactor,
-      goal: goal,
+      goal: effectiveGoal,
       medicalConditions: medicalConditions,
+      allergies: allergies,
+      isObesityMode: effectiveObesityMode,
       medicalFlags: flags,
       bmr: bmr,
       tdee: tdee,
@@ -172,6 +220,8 @@ class UserProfile {
       ceilingSodium: ceilingSodium,
       ceilingSatFat: ceilingSatFat,
       ceilingProteinKidney: ceilingProteinKidney,
+      isSynced: isSynced,
+      updatedAt: updatedAt ?? DateTime.now().toIso8601String(),
     );
   }
 
@@ -185,6 +235,8 @@ class UserProfile {
       'goal': goal,
       'medical_conditions': jsonEncode(medicalConditions),
       'medical_flags': medicalFlags,
+      'allergies': jsonEncode(allergies),
+      'is_obesity_mode': isObesityMode ? 1 : 0,
       'bmr': bmr,
       'tdee': tdee,
       'target_calories': targetCalories,
@@ -196,6 +248,8 @@ class UserProfile {
       'ceiling_sodium': ceilingSodium,
       'ceiling_sat_fat': ceilingSatFat,
       'ceiling_protein_kidney': ceilingProteinKidney,
+      'is_synced': isSynced,
+      'updated_at': updatedAt ?? DateTime.now().toIso8601String(),
     };
     if (id != null) {
       map['id'] = id;
@@ -204,18 +258,26 @@ class UserProfile {
   }
 
   factory UserProfile.fromMap(Map<String, dynamic> map) {
-    final flags = map['medical_flags']?.toString() ?? '00000';
+    final flags = map['medical_flags']?.toString() ?? '000000';
     return UserProfile(
       id: map['id'],
-      dob: map['dob'],
-      weight: (map['weight'] as num).toDouble(),
-      height: (map['height'] as num).toDouble(),
-      gender: map['gender'],
-      activityFactor: (map['activity_factor'] as num).toDouble(),
-      goal: map['goal'] ?? 'Giữ dáng',
+      dob: map['dob']?.toString() ?? '2000-01-01',
+      weight: (map['weight'] as num?)?.toDouble() ?? 60.0,
+      height: (map['height'] as num?)?.toDouble() ?? 170.0,
+      gender: map['gender']?.toString() ?? 'Nam',
+      activityFactor: (map['activity_factor'] as num?)?.toDouble() ?? 1.2,
+      goal: map['goal']?.toString() ?? 'Giữ dáng',
       medicalConditions: map['medical_conditions'] != null
-          ? List<String>.from(jsonDecode(map['medical_conditions']))
+          ? (map['medical_conditions'] is String
+              ? List<String>.from(jsonDecode(map['medical_conditions']))
+              : List<String>.from(map['medical_conditions']))
           : decodeMedicalFlags(flags),
+      allergies: map['allergies'] != null
+          ? (map['allergies'] is String
+              ? List<String>.from(jsonDecode(map['allergies']))
+              : List<String>.from(map['allergies']))
+          : const [],
+      isObesityMode: map['is_obesity_mode'] == 1 || map['is_obesity_mode'] == true,
       medicalFlags: flags,
       bmr: (map['bmr'] as num?)?.toDouble() ?? 0.0,
       tdee: (map['tdee'] as num?)?.toDouble() ?? 0.0,
@@ -228,6 +290,8 @@ class UserProfile {
       ceilingSodium: (map['ceiling_sodium'] as num?)?.toDouble() ?? 2000.0,
       ceilingSatFat: (map['ceiling_sat_fat'] as num?)?.toDouble() ?? 0.0,
       ceilingProteinKidney: (map['ceiling_protein_kidney'] as num?)?.toDouble() ?? -1.0,
+      isSynced: map['is_synced'] ?? 0,
+      updatedAt: map['updated_at']?.toString(),
     );
   }
 }

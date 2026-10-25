@@ -1,9 +1,12 @@
-﻿import 'dart:io';
+import 'dart:io';
+import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
+import '../../data/models/scan_history_model.dart';
 import '../state/scan_controller.dart';
 import '../state/history_controller.dart';
 import 'found_object_screen.dart';
@@ -19,6 +22,80 @@ class HistoryScreen extends ConsumerStatefulWidget {
 class _HistoryScreenState extends ConsumerState<HistoryScreen> {
   bool isSelectionMode = false;
   Set<int> selectedIds = {};
+
+  Widget _buildThumbnail(ScanHistory item) {
+    File? validFile;
+    if (item.croppedFoodImage.isNotEmpty && File(item.croppedFoodImage).existsSync()) {
+      validFile = File(item.croppedFoodImage);
+    } else if (item.originalImage.isNotEmpty && File(item.originalImage).existsSync()) {
+      validFile = File(item.originalImage);
+    }
+
+    Uint8List? memoryBytes;
+    if (validFile == null) {
+      final b64 = (item.foodImageBase64 != null && item.foodImageBase64!.isNotEmpty)
+          ? item.foodImageBase64
+          : item.originalImageBase64;
+      if (b64 != null && b64.isNotEmpty) {
+        try {
+          memoryBytes = base64Decode(b64);
+        } catch (_) {}
+      }
+    }
+
+    Widget content;
+    if (validFile != null) {
+      content = Image.file(
+        validFile,
+        width: 60,
+        height: 60,
+        fit: BoxFit.cover,
+        errorBuilder: (ctx, err, stack) => _buildPlaceholder(),
+      );
+    } else if (memoryBytes != null) {
+      content = Image.memory(
+        memoryBytes,
+        width: 60,
+        height: 60,
+        fit: BoxFit.cover,
+        errorBuilder: (ctx, err, stack) => _buildPlaceholder(),
+      );
+    } else {
+      content = _buildPlaceholder();
+    }
+
+    return GestureDetector(
+      onTap: () {
+        if (validFile != null || memoryBytes != null) {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => FullScreenImage(
+                imageFile: validFile,
+                imageBytes: memoryBytes,
+              ),
+            ),
+          );
+        }
+      },
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(8),
+        child: content,
+      ),
+    );
+  }
+
+  Widget _buildPlaceholder() {
+    return Container(
+      width: 60,
+      height: 60,
+      color: Colors.green.shade50,
+      child: const Icon(
+        Icons.fastfood,
+        color: Colors.green,
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -60,6 +137,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
                   onPressed: selectedIds.isEmpty
                       ? null
                       : () async {
+                          final messenger = ScaffoldMessenger.of(context);
                           final confirm = await showDialog<bool>(
                             context: context,
                             builder: (ctx) => AlertDialog(
@@ -87,7 +165,6 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
                           );
 
                           if (confirm == true) {
-                            // Find full items to delete
                             final itemsToDelete =
                                 historyAsyncValue.value
                                     ?.where(
@@ -99,17 +176,16 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
                                 .read(historyControllerProvider.notifier)
                                 .deleteRecords(itemsToDelete);
 
-                            if (mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text('Xóa thành công!'),
-                                ),
-                              );
-                              setState(() {
-                                isSelectionMode = false;
-                                selectedIds.clear();
-                              });
-                            }
+                            if (!mounted) return;
+                            messenger.showSnackBar(
+                              const SnackBar(
+                                content: Text('Xóa thành công!'),
+                              ),
+                            );
+                            setState(() {
+                              isSelectionMode = false;
+                              selectedIds.clear();
+                            });
                           }
                         },
                   child: const Text(
@@ -210,41 +286,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
                           padding: const EdgeInsets.all(12),
                           child: Row(
                             children: [
-                              GestureDetector(
-                                onTap: () {
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (context) => FullScreenImage(
-                                        imageFile: File(item.originalImage),
-                                      ),
-                                    ),
-                                  );
-                                },
-                                child: Hero(
-                                  tag: item.originalImage,
-                                  child: ClipRRect(
-                                    borderRadius: BorderRadius.circular(8),
-                                    child: Image.file(
-                                      File(item.originalImage),
-                                      width: 60,
-                                      height: 60,
-                                      fit: BoxFit.cover,
-                                      errorBuilder:
-                                          (context, error, stackTrace) =>
-                                              Container(
-                                                width: 60,
-                                                height: 60,
-                                                color: Colors.green.shade50,
-                                                child: const Icon(
-                                                  Icons.fastfood,
-                                                  color: Colors.green,
-                                                ),
-                                              ),
-                                    ),
-                                  ),
-                                ),
-                              ),
+                              _buildThumbnail(item),
                               const SizedBox(width: 16),
                               Expanded(
                                 child: Column(
@@ -307,4 +349,3 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
     );
   }
 }
-
