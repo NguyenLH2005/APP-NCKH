@@ -21,7 +21,7 @@ class DatabaseHelper {
 
     return await openDatabase(
       path,
-      version: 9,
+      version: 10,
       onCreate: _createDB,
       onUpgrade: (db, oldVersion, newVersion) async {
         if (oldVersion < 8) {
@@ -45,6 +45,11 @@ class DatabaseHelper {
             await db.execute("ALTER TABLE scan_history ADD COLUMN label_image_base64 TEXT");
           } catch (_) {}
         }
+        if (oldVersion < 10) {
+          try {
+            await db.execute("ALTER TABLE scan_history ADD COLUMN ai_suggestion TEXT");
+          } catch (_) {}
+        }
       },
     );
   }
@@ -59,6 +64,7 @@ class DatabaseHelper {
       original_image_base64 TEXT,
       food_image_base64 TEXT,
       label_image_base64 TEXT,
+      ai_suggestion TEXT,
       food_name TEXT NOT NULL,
       weight REAL,
       nutrition_data TEXT NOT NULL,

@@ -8,6 +8,7 @@ class ScanHistory {
   final String? originalImageBase64;
   final String? foodImageBase64;
   final String? labelImageBase64;
+  final String? aiSuggestion;
   final String foodName;
   final double? weight;
   final String nutritionData;
@@ -24,6 +25,7 @@ class ScanHistory {
     this.originalImageBase64,
     this.foodImageBase64,
     this.labelImageBase64,
+    this.aiSuggestion,
     required this.foodName,
     this.weight,
     required this.nutritionData,
@@ -42,6 +44,7 @@ class ScanHistory {
       'original_image_base64': originalImageBase64,
       'food_image_base64': foodImageBase64,
       'label_image_base64': labelImageBase64,
+      'ai_suggestion': aiSuggestion,
       'food_name': foodName,
       'weight': weight,
       'nutrition_data': nutritionData,
@@ -61,6 +64,7 @@ class ScanHistory {
       originalImageBase64: map['original_image_base64'],
       foodImageBase64: map['food_image_base64'],
       labelImageBase64: map['label_image_base64'],
+      aiSuggestion: map['ai_suggestion'] ?? map['aiSuggestion'],
       foodName: map['food_name'] ?? 'Món ăn',
       weight: map['weight'],
       nutritionData: map['nutrition_data'] ?? '[]',
@@ -79,6 +83,7 @@ class ScanHistory {
     String? originalImageBase64,
     String? foodImageBase64,
     String? labelImageBase64,
+    String? aiSuggestion,
     String? foodName,
     double? weight,
     String? nutritionData,
@@ -95,6 +100,7 @@ class ScanHistory {
       originalImageBase64: originalImageBase64 ?? this.originalImageBase64,
       foodImageBase64: foodImageBase64 ?? this.foodImageBase64,
       labelImageBase64: labelImageBase64 ?? this.labelImageBase64,
+      aiSuggestion: aiSuggestion ?? this.aiSuggestion,
       foodName: foodName ?? this.foodName,
       weight: weight ?? this.weight,
       nutritionData: nutritionData ?? this.nutritionData,

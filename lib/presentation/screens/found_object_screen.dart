@@ -102,6 +102,7 @@ class _FoundObjectScreenState extends ConsumerState<FoundObjectScreen> {
   void initState() {
     super.initState();
     _currentData = widget.resultData;
+    _suggestionText = _currentData.aiSuggestion;
     if (widget.isFromScan) {
       WidgetsBinding.instance.addPostFrameCallback((_) async {
         if (_isEggFood) {
@@ -181,6 +182,23 @@ class _FoundObjectScreenState extends ConsumerState<FoundObjectScreen> {
           _suggestionText = suggestion;
           _isLoadingSuggestion = false;
         });
+      }
+
+      // Lưu vĩnh viễn gợi ý vào SQLite và đồng bộ lên đám mây
+      final updatedData = _currentData.copyWith(
+        aiSuggestion: suggestion,
+        isSynced: 0,
+        updatedAt: DateTime.now(),
+      );
+      if (_currentData.id != null) {
+        await ref.read(historyControllerProvider.notifier).updateScan(updatedData);
+        ref.read(syncProvider.notifier).syncNow();
+      }
+      if (mounted) {
+        setState(() {
+          _currentData = updatedData;
+        });
+        _fetchSuggestion();
       }
     } catch (e) {
       if (mounted) {
@@ -530,6 +548,7 @@ class _FoundObjectScreenState extends ConsumerState<FoundObjectScreen> {
         setState(() {
           _currentData = updatedData;
         });
+        _fetchSuggestion();
       }
     }
   }

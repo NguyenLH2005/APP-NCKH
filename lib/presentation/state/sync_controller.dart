@@ -252,6 +252,7 @@ class SyncController extends Notifier<AuthUserState> {
           'originalImageBase64': origBase64,
           'foodImageBase64': foodBase64,
           'labelImageBase64': labelBase64,
+          'aiSuggestion': s.aiSuggestion,
           'createdAt': s.createdAt.toIso8601String(),
         });
       }
@@ -365,6 +366,7 @@ class SyncController extends Notifier<AuthUserState> {
               originalImageBase64: originalB64,
               foodImageBase64: foodB64,
               labelImageBase64: labelB64,
+              aiSuggestion: s['ai_suggestion'] ?? s['aiSuggestion'],
               foodName: s['food_name'] ?? s['foodName'] ?? 'Món ăn',
               weight: _parseNullableNum(s['weight']),
               nutritionData: s['nutrition_data'] is String 
