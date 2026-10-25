@@ -745,7 +745,7 @@ class _FoundObjectScreenState extends ConsumerState<FoundObjectScreen> {
                                         ? (_currentData.weight! >= 1000 
                                             ? '${(_currentData.weight! / 1000).toStringAsFixed(2).replaceAll(RegExp(r'0*$'), '').replaceAll(RegExp(r'\.$'), '')} kg' 
                                             : '${_currentData.weight!.toStringAsFixed(2).replaceAll(RegExp(r'0*$'), '').replaceAll(RegExp(r'\.$'), '')} g')
-                                        : (_isEggFood ? '50 g' : 'Giữ nguyên 100g'),
+                                        : (_isEggFood ? '50 g' : '100 g'),
                                     style: const TextStyle(
                                       fontSize: 20,
                                       fontWeight: FontWeight.bold,
