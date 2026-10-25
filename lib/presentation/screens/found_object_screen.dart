@@ -116,6 +116,8 @@ class _FoundObjectScreenState extends ConsumerState<FoundObjectScreen> {
   }
 
   Future<void> _fetchSuggestion() async {
+    if (_isLoadingSuggestion) return;
+
     final profileState = ref.read(profileProvider);
     if (profileState.tdee == null || profileState.profile == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -198,7 +200,6 @@ class _FoundObjectScreenState extends ConsumerState<FoundObjectScreen> {
         setState(() {
           _currentData = updatedData;
         });
-        _fetchSuggestion();
       }
     } catch (e) {
       if (mounted) {
